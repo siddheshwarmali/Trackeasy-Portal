@@ -2,7 +2,5 @@
   "name": "easytrack-dashboard",
   "private": true,
   "type": "module",
-  "dependencies": {
-    "@netlify/blobs": "^10.0.10"
-  }
+  "dependencies": {}
 }

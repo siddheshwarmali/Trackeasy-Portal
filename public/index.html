@@ -1786,7 +1786,7 @@
 
 // =========================
 // NETLIFY SHARED STORAGE (NEW)
-// Persists shared dashboard state for all users via Netlify Functions + Netlify Blobs
+// Persists shared dashboard state for all users via Netlify Functions (GitHub-backed)
 // Endpoint: /.netlify/functions/state
 // =========================
 const CLOUD_SYNC_ENABLED = true;
@@ -2094,9 +2094,9 @@ function wsSaveNow() {
     wsLastSerialized = JSON.stringify(state);
     wsSetIndicator('Saved ✓ ' + new Date().toLocaleTimeString(), true);
 
-    // Netlify cloud save (shared across devices)
+    // Cloud save (GitHub via Netlify function)
     cloudSaveState(state).then((ok) => {
-        if (ok) wsSetIndicator('Saved (shared) ✓ ' + new Date().toLocaleTimeString(), true);
+        if (ok) wsSetIndicator('Saved (GitHub) ✓ ' + new Date().toLocaleTimeString(), true);
     });
 }
 
@@ -2155,7 +2155,7 @@ function wsSaveNow() {
                 wsLastSerialized = JSON.stringify(store.workspaces[wsCurrentId].state || {});
                 wsSetIndicator('Loaded ✓', true);
 
-// Cloud override: load shared state from Netlify storage (if available)
+// Cloud override: load shared state from GitHub via Netlify function (if available)
 cloudFetchState().then((cloudState) => {
     if (cloudState) {
         wsApplyState(cloudState, { silent:true });
