@@ -1784,89 +1784,6 @@
         const WS_LAST_KEY = 'execdash.lastWorkspaceId.v1';
         const WS_SCHEMA_VERSION = 1;
 
-// =========================
-// NETLIFY + GITHUB SHARED STORAGE (DEBUG)
-// Persists shared dashboard state for all users via Netlify Functions.
-// The Netlify Function stores/retrieves the state file in GitHub.
-// Endpoint: /.netlify/functions/state
-// =========================
-const CLOUD_SYNC_ENABLED = true;
-const CLOUD_STATE_ENDPOINT = '/.netlify/functions/state';
-
-async function cloudFetchState() {
-    if (!CLOUD_SYNC_ENABLED) return null;
-    const t0 = performance.now();
-    console.groupCollapsed('%c[Cloud] GET state', 'color:#60a5fa;font-weight:bold;');
-    console.log('Endpoint:', CLOUD_STATE_ENDPOINT);
-    try {
-        const r = await fetch(CLOUD_STATE_ENDPOINT, { method: 'GET', headers: { 'Accept': 'application/json' } });
-        const raw = await r.text();
-        console.log('HTTP', r.status, r.statusText);
-        console.log('Raw response:', raw);
-        if (!r.ok) throw new Error(`Cloud GET failed: ${r.status} ${r.statusText} :: ${raw}`);
-
-        let data;
-        try { data = JSON.parse(raw || '{}'); } catch (e) { throw new Error('Cloud GET JSON parse error: ' + e.message); }
-        if (data && data.error) {
-            console.error('Cloud GET error payload:', data);
-            throw new Error(`Cloud GET error payload: ${data.error}`);
-        }
-
-        console.log('Parsed keys:', data ? Object.keys(data) : null);
-        console.log('Duration(ms):', Math.round(performance.now() - t0));
-        console.groupEnd();
-        return data.state || null;
-    } catch (e) {
-        console.error('Cloud fetch failed:', e);
-        try { wsSetIndicator('Cloud load failed (see console)', false); } catch(_) {}
-        console.groupEnd();
-        return null;
-    }
-}
-
-async function cloudSaveState(state) {
-    if (!CLOUD_SYNC_ENABLED) return false;
-    const t0 = performance.now();
-    console.groupCollapsed('%c[Cloud] POST state', 'color:#34d399;font-weight:bold;');
-    console.log('Endpoint:', CLOUD_STATE_ENDPOINT);
-    try {
-        const r = await fetch(CLOUD_STATE_ENDPOINT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ state })
-        });
-        const raw = await r.text();
-        console.log('HTTP', r.status, r.statusText);
-        console.log('Raw response:', raw);
-        if (!r.ok) throw new Error(`Cloud POST failed: ${r.status} ${r.statusText} :: ${raw}`);
-
-        let data = null;
-        try { data = JSON.parse(raw || '{}'); } catch (e) { data = null; }
-        if (data && data.error) {
-            console.error('Cloud POST error payload:', data);
-            throw new Error(`Cloud POST error payload: ${data.error}`);
-        }
-
-        console.log('Duration(ms):', Math.round(performance.now() - t0));
-        console.groupEnd();
-        return true;
-    } catch (e) {
-        console.error('Cloud save failed:', e);
-        try { wsSetIndicator('Cloud save failed (see console)', false); } catch(_) {}
-        console.groupEnd();
-        return false;
-    }
-}
-
-// Global error logging to help debug in-browser issues
-window.addEventListener('error', (e) => {
-    console.error('[Global Error]', e.message, e.error);
-});
-window.addEventListener('unhandledrejection', (e) => {
-    console.error('[Unhandled Promise Rejection]', e.reason);
-});
-
-
         let wsCurrentId = null;
         let wsLastSerialized = null;
         let wsAutoSaveTimer = null;
@@ -2128,20 +2045,14 @@ window.addEventListener('unhandledrejection', (e) => {
             wsSetIndicator(`Loaded: ${w.name}`, true);
         }
 
-        
-function wsSaveNow() {
-    if (wsIsApplying) return;
-    if (!wsCurrentId) return;
-    const state = wsGetState();
-    wsUpdateWorkspace(wsCurrentId, state);
-    wsLastSerialized = JSON.stringify(state);
-    wsSetIndicator('Saved ✓ ' + new Date().toLocaleTimeString(), true);
-
-    // Cloud save (GitHub via Netlify function)
-    cloudSaveState(state).then((ok) => {
-        if (ok) wsSetIndicator('Saved (GitHub) ✓ ' + new Date().toLocaleTimeString(), true);
-    });
-}
+        function wsSaveNow() {
+            if (wsIsApplying) return;
+            if (!wsCurrentId) return;
+            const state = wsGetState();
+            wsUpdateWorkspace(wsCurrentId, state);
+            wsLastSerialized = JSON.stringify(state);
+            wsSetIndicator('Saved ✓ ' + new Date().toLocaleTimeString(), true);
+        }
 
         function wsAutoSaveTick() {
             if (!wsCurrentId || wsIsApplying) return;
@@ -2156,8 +2067,6 @@ function wsSaveNow() {
                     wsUpdateWorkspace(wsCurrentId, state);
                     wsLastSerialized = ser;
                     wsSetIndicator('Auto-saved ✓ ' + new Date().toLocaleTimeString(), true);
-                    // Cloud auto-save
-                    cloudSaveState(state).then((ok)=>{ if(ok) wsSetIndicator('Cloud auto-saved ✓ ' + new Date().toLocaleTimeString(), true); });
                 }
             } catch (e) {
                 // ignore
@@ -2197,17 +2106,6 @@ function wsSaveNow() {
                 wsApplyState(store.workspaces[wsCurrentId].state, { silent:true });
                 wsLastSerialized = JSON.stringify(store.workspaces[wsCurrentId].state || {});
                 wsSetIndicator('Loaded ✓', true);
-
-// Cloud override: load shared state from GitHub via Netlify Function (if available)
-cloudFetchState().then((cloudState) => {
-    if (cloudState) {
-        wsApplyState(cloudState, { silent:true });
-        try { wsLastSerialized = JSON.stringify(cloudState || {}); } catch(e) {}
-        try { wsUpdateWorkspace(wsCurrentId, wsGetState()); } catch(e) {}
-        wsSetIndicator('Cloud loaded ✓', true);
-    }
-});
-
             } else {
                 wsSetIndicator('Ready', true);
             }
