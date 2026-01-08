@@ -43,13 +43,10 @@
         .delete-btn { opacity: 0; transition: opacity 0.2s; }
     </style>
 
-<style>
-  /* HIDE_CLEAR_STORAGE_BTN */
-  button[onclick="wsClearLocalStorage()"], button[onclick="wsClearLocalStorage()"] * { display:none !important; }
-  /* also match inline handlers that start with wsClearLocalStorage */
-  button[onclick^="wsClearLocalStorage"] { display:none !important; }
-</style>
-
+    <style>
+      /* HIDE_CLEAR_STORAGE_BTN */
+      button[onclick^="wsClearLocalStorage"], button[onclick="wsClearLocalStorage()"] { display:none !important; }
+    </style>
 </head>
 <body class="text-gray-800">
 
@@ -562,15 +559,17 @@
         .delete-btn:hover { background: rgba(239, 68, 68, 0.4); }
     </style>
 
-<style>
-  /* HIDE_CLEAR_STORAGE_BTN */
-  button[onclick="wsClearLocalStorage()"], button[onclick="wsClearLocalStorage()"] * { display:none !important; }
-  /* also match inline handlers that start with wsClearLocalStorage */
-  button[onclick^="wsClearLocalStorage"] { display:none !important; }
-</style>
-
+    <style>
+      /* HIDE_CLEAR_STORAGE_BTN */
+      button[onclick^="wsClearLocalStorage"], button[onclick="wsClearLocalStorage()"] { display:none !important; }
+    </style>
 </head>
 <body>
+
+<div id="ghsync-badge" style="position:fixed;right:12px;bottom:12px;z-index:9999;background:#0b1220cc;color:#fff;padding:8px 10px;border-radius:10px;font-size:12px;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.12)">
+  GitHub Sync: <span id="ghsync-status" style="color:#86efac">Idle</span>
+</div>
+
     <div class="container">
         <!-- Controls First -->
         <div class="controls-container">
@@ -2368,10 +2367,291 @@ window.onload = function() {
             window.addEventListener('message', (e) => { if (e.data && e.data.type === 'REQUEST_ADO_SYNC_RUN') openAdoModal('run'); if(e.data && e.data.type === 'BAU_UPDATE') { bauData = e.data.payload; renderBauStats(); } });
         };
     
-        // Override: Clear Storage removed in GitHub mode
-        function wsClearLocalStorage() {
-            alert('Clear Storage feature has been removed.');
+
+// =========================
+// ADVANCED GITHUB SYNC (FULL RESET + RELIABLE LOAD)
+// - All dashboards are stored in GitHub via Netlify Function
+// - Selecting a dashboard always fetches fresh state from GitHub
+// - New dashboard creates BLANK state and applies it immediately
+// - Clear Storage removed
+// =========================
+const GH_ENDPOINT = '/.netlify/functions/state';
+const GH_URL_PARAM = 'dash';
+let ghAutoSaveTimer = null;
+let ghStore = { schemaVersion: WS_SCHEMA_VERSION, workspaces: {}, lastSerial: 0 };
+
+function ghBadge(msg, isErr=false) {
+    const el = document.getElementById('ghsync-status');
+    if (el) {
+        el.textContent = msg;
+        el.style.color = isErr ? '#fca5a5' : '#86efac';
+    }
+    console[isErr ? 'error' : 'log']('[GitHubSync]', msg);
+}
+
+function ghGetDashFromUrl() {
+    try { return new URL(window.location.href).searchParams.get(GH_URL_PARAM); } catch { return null; }
+}
+function ghSetDashInUrl(id) {
+    try {
+        const u = new URL(window.location.href);
+        u.searchParams.set(GH_URL_PARAM, id);
+        window.history.replaceState({}, '', u.toString());
+    } catch {}
+}
+
+async function ghRequest(method, params={}, body=null) {
+    const u = new URL(GH_ENDPOINT, window.location.origin);
+    Object.entries(params).forEach(([k,v]) => { if (v!==undefined && v!==null) u.searchParams.set(k, String(v)); });
+    const opt = { method, headers: { 'Accept':'application/json' } };
+    if (body !== null) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    const r = await fetch(u.toString(), opt);
+    const raw = await r.text();
+    let data = {};
+    try { data = JSON.parse(raw || '{}'); } catch(e) { data = { error: 'Invalid JSON from server', raw }; }
+    if (!r.ok) throw new Error(`${method} ${r.status} ${r.statusText}: ${raw}`);
+    if (data.error) throw new Error(data.error + (data.details ? (' :: '+JSON.stringify(data.details)) : ''));
+    return data;
+}
+
+const ghListDashboards = () => ghRequest('GET', { list: 1 });
+const ghGetDashboard = (id) => ghRequest('GET', { dash: id });
+const ghSaveDashboard = (id, state) => ghRequest('POST', { dash: id }, { state });
+const ghDeleteDashboard = (id) => ghRequest('DELETE', { dash: id });
+
+// Override local store accessors
+function wsLoadStore() { return ghStore; }
+function wsSaveStore(_) { /* no local persistence */ }
+
+// Blank state builder (shape-safe)
+function wsGetBlankState() {
+    const st = (typeof wsGetState === 'function') ? wsGetState() : { executive:{}, headless:{} };
+    st.executive = st.executive || {};
+    st.headless = st.headless || {};
+    st.executive.milestones = [];
+    st.executive.userStories = [];
+    st.executive.bugs = [];
+    st.executive.blockers = [];
+    st.executive.kpiData = [];
+    st.executive.pendingDisciplineData = [];
+    st.executive.profileToDisciplineMap = {};
+    st.executive.tempAdoTasks = [];
+    st.executive.l2Data = [];
+    st.executive.expandedDiscipline = 'ALL';
+    st.executive.activeUsStage = 'New';
+    st.executive.activeBugStage = 'New';
+    st.executive.showTrackerDetails = false;
+    st.executive.showL2Details = false;
+    st.executive.discModalTab = 'L1';
+    st.executive.savedSummaryText = null;
+    st.executive.adoSyncSource = null;
+    st.executive.adoConfig = { organization:'', project:'', queryId:'' };
+    st.executive.bauData = st.executive.bauData || {};
+    st.executive.bauData.totalTickets = 0;
+    st.executive.bauData.withinSLA = 0;
+    st.executive.bauData.breachedSLA = 0;
+    st.executive.bauData.slaPercentage = '0';
+    st.headless.loadedTicketData = null;
+    st.__meta = st.__meta || {};
+    st.__meta.name = null;
+    st.__meta.createdFrom = 'blank';
+    return st;
+}
+
+async function ghSyncList() {
+    ghBadge('Syncing list...');
+    const data = await ghListDashboards();
+    const list = Array.isArray(data.dashboards) ? data.dashboards : [];
+    ghStore.workspaces = {};
+    list.forEach(item => {
+        ghStore.workspaces[item.id] = {
+            id: item.id,
+            name: item.name || item.id,
+            createdAt: item.createdAt || item.updatedAt || new Date().toISOString(),
+            updatedAt: item.updatedAt || new Date().toISOString(),
+            state: null
+        };
+    });
+    wsRefreshSelect();
+    ghBadge('List synced');
+    return list;
+}
+
+async function ghLoadAndApply(id) {
+    if (!id) return;
+    ghBadge('Loading '+id+'...');
+    const data = await ghGetDashboard(id);
+    const state = data.state || null;
+    if (state) {
+        // Apply with silent:false to force full re-render
+        wsApplyState(state, { silent:false });
+        try { wsLastSerialized = JSON.stringify(state || {}); } catch(e) {}
+        ghBadge('Loaded ✓');
+        wsSetIndicator('Loaded ✓', true);
+    } else {
+        // no state exists - apply blank
+        const blank = wsGetBlankState();
+        wsApplyState(blank, { silent:false });
+        try { wsLastSerialized = JSON.stringify(blank || {}); } catch(e) {}
+        ghBadge('Empty dashboard');
+        wsSetIndicator('Empty dashboard', true);
+    }
+}
+
+// Override select workspace to always fetch from GitHub
+async function wsSelectWorkspace(id) {
+    wsCurrentId = id;
+    ghSetDashInUrl(id);
+    await ghLoadAndApply(id);
+}
+
+// Override save to GitHub
+async function wsSaveNow() {
+    if (wsIsApplying) return;
+    if (!wsCurrentId) return;
+    const state = wsGetState();
+    const store = wsLoadStore();
+    const w = store.workspaces[wsCurrentId];
+    state.__meta = state.__meta || {};
+    state.__meta.name = (w && w.name) ? w.name : (state.__meta.name || null);
+
+    wsSetIndicator('Saving...', true);
+    ghBadge('Saving...');
+    const res = await ghSaveDashboard(wsCurrentId, state);
+    if (res.commitUrl) console.log('[GitHub] Commit URL:', res.commitUrl);
+    wsLastSerialized = JSON.stringify(state);
+    wsSetIndicator('Saved ✓ ' + new Date().toLocaleTimeString(), true);
+    ghBadge('Saved ✓');
+    await ghSyncList();
+}
+
+// Override create workspace: always start blank, apply immediately, then save
+async function wsCreateWorkspace(name, baseState=null) {
+    const id = (typeof generateUUID === 'function') ? generateUUID() : ('ws-' + Date.now());
+    wsCurrentId = id;
+    ghSetDashInUrl(id);
+
+    const blank = wsGetBlankState();
+    blank.__meta = blank.__meta || {};
+    blank.__meta.name = (name || 'New Dashboard').trim();
+
+    // Apply immediately so UI resets instantly
+    wsApplyState(blank, { silent:false });
+    try { wsLastSerialized = JSON.stringify(blank || {}); } catch(e) {}
+
+    ghBadge('Creating...');
+    await ghSaveDashboard(id, blank);
+
+    // add to store and refresh dropdown
+    ghStore.workspaces[id] = { id, name: blank.__meta.name, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), state: null };
+    await ghSyncList();
+
+    // select it (loads again but should be same)
+    await wsSelectWorkspace(id);
+    return id;
+}
+
+async function wsRenameCurrent() {
+    if (!wsCurrentId) return;
+    const store = wsLoadStore();
+    const w = store.workspaces[wsCurrentId];
+    const newName = prompt('Rename dashboard', (w && w.name) ? w.name : '');
+    if (newName === null) return;
+    if (w) w.name = newName.trim() || w.name;
+    await wsSaveNow();
+}
+
+async function wsDuplicateCurrent() {
+    if (!wsCurrentId) return;
+    const store = wsLoadStore();
+    const w = store.workspaces[wsCurrentId];
+    const base = wsGetState();
+    const newName = ((w && w.name) ? w.name : 'Dashboard') + ' (Copy)';
+    // Create with baseState copy
+    const id = (typeof generateUUID === 'function') ? generateUUID() : ('ws-' + Date.now());
+    const copied = wsSafeClone(base);
+    copied.__meta = copied.__meta || {};
+    copied.__meta.name = newName;
+    wsCurrentId = id;
+    ghSetDashInUrl(id);
+    wsApplyState(copied, { silent:false });
+    await ghSaveDashboard(id, copied);
+    await ghSyncList();
+    await wsSelectWorkspace(id);
+}
+
+async function wsDeleteCurrent() {
+    if (!wsCurrentId) return;
+    const store = wsLoadStore();
+    const w = store.workspaces[wsCurrentId];
+    if (!confirm(`Delete dashboard "${w ? w.name : wsCurrentId}" from GitHub?`)) return;
+    await ghDeleteDashboard(wsCurrentId);
+    await ghSyncList();
+    const list = wsList();
+    wsCurrentId = list[0] ? list[0].id : null;
+    if (wsCurrentId) await wsSelectWorkspace(wsCurrentId);
+    else wsSetIndicator('No dashboards left', false);
+}
+
+// Auto-save every 25s if changed
+function wsStartAutoSave() {
+    if (ghAutoSaveTimer) return;
+    ghAutoSaveTimer = setInterval(async () => {
+        if (!wsCurrentId || wsIsApplying) return;
+        try {
+            const state = wsGetState();
+            const ser = JSON.stringify(state);
+            if (wsLastSerialized === null) { wsLastSerialized = ser; return; }
+            if (ser !== wsLastSerialized) {
+                await wsSaveNow();
+            }
+        } catch(e) { console.warn(e); }
+    }, 25000);
+}
+
+// Clear storage removed
+function wsClearLocalStorage() { alert('Clear Storage is removed.'); }
+
+// Override init: load list, pick URL dash or first, then load state
+async function wsInitWorkspaceManager() {
+    try {
+        const list = await ghSyncList();
+        let id = ghGetDashFromUrl();
+        if (!id) id = list[0] ? list[0].id : null;
+        if (id) {
+            wsCurrentId = id;
+            ghSetDashInUrl(id);
+            await ghLoadAndApply(id);
+        } else {
+            // no dashboards exist, create default
+            await wsCreateWorkspace('Default');
         }
+    } catch(e) {
+        console.error(e);
+        ghBadge('Init failed', true);
+        wsSetIndicator('GitHub init failed (see console)', false);
+    }
+
+    // hook select change to our overridden wsSelectWorkspace
+    const select = document.getElementById('ws-select');
+    if (select && !select.__ghwired) {
+        select.__ghwired = true;
+        select.addEventListener('change', (e) => wsSelectWorkspace(e.target.value));
+    }
+    // hook import file to create new dashboard
+    const importEl = document.getElementById('ws-import-file');
+    if (importEl && !importEl.__ghwired) {
+        importEl.__ghwired = true;
+        importEl.addEventListener('change', async (e) => {
+            const f = e.target.files && e.target.files[0];
+            if (f) await wsImportFile(f);
+            e.target.value = '';
+        });
+    }
+
+    wsStartAutoSave();
+}
+
 </script>
 
     <!-- Workspace Modal (NEW) -->
