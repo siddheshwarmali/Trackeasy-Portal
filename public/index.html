@@ -2369,16 +2369,17 @@ window.onload = function() {
     
 
 // =========================
-// ADVANCED GITHUB SYNC (FULL RESET + RELIABLE LOAD)
-// - All dashboards are stored in GitHub via Netlify Function
-// - Selecting a dashboard always fetches fresh state from GitHub
-// - New dashboard creates BLANK state and applies it immediately
-// - Clear Storage removed
+// GITHUB SYNC + HARD RESET (v5)
+// Goal: Whole dashboard resets on dashboard switch / new dashboard.
+// Strategy:
+// 1) On dashboard select/new: update URL (?dash=ID) + hard reload (clears all JS/DOM state).
+// 2) On page load: fetch dashboard state from GitHub (via Netlify function) and render (silent:false).
+// 3) Save writes full state to GitHub.
 // =========================
+
 const GH_ENDPOINT = '/.netlify/functions/state';
 const GH_URL_PARAM = 'dash';
-let ghAutoSaveTimer = null;
-let ghStore = { schemaVersion: WS_SCHEMA_VERSION, workspaces: {}, lastSerial: 0 };
+window.__HARD_RESET_ON_SWITCH__ = true;
 
 function ghBadge(msg, isErr=false) {
     const el = document.getElementById('ghsync-status');
@@ -2389,15 +2390,19 @@ function ghBadge(msg, isErr=false) {
     console[isErr ? 'error' : 'log']('[GitHubSync]', msg);
 }
 
-function ghGetDashFromUrl() {
-    try { return new URL(window.location.href).searchParams.get(GH_URL_PARAM); } catch { return null; }
-}
-function ghSetDashInUrl(id) {
+function ghHardReloadWithDash(id) {
     try {
         const u = new URL(window.location.href);
         u.searchParams.set(GH_URL_PARAM, id);
-        window.history.replaceState({}, '', u.toString());
-    } catch {}
+        u.searchParams.set('_ts', Date.now().toString());
+        window.location.assign(u.toString());
+    } catch (e) {
+        window.location.reload();
+    }
+}
+
+function ghGetDashFromUrl() {
+    try { return new URL(window.location.href).searchParams.get(GH_URL_PARAM); } catch { return null; }
 }
 
 async function ghRequest(method, params={}, body=null) {
@@ -2414,16 +2419,11 @@ async function ghRequest(method, params={}, body=null) {
     return data;
 }
 
-const ghListDashboards = () => ghRequest('GET', { list: 1 });
-const ghGetDashboard = (id) => ghRequest('GET', { dash: id });
-const ghSaveDashboard = (id, state) => ghRequest('POST', { dash: id }, { state });
-const ghDeleteDashboard = (id) => ghRequest('DELETE', { dash: id });
+const ghList = () => ghRequest('GET', { list: 1 });
+const ghGet  = (id) => ghRequest('GET', { dash: id });
+const ghSave = (id, state) => ghRequest('POST', { dash: id }, { state });
 
-// Override local store accessors
-function wsLoadStore() { return ghStore; }
-function wsSaveStore(_) { /* no local persistence */ }
-
-// Blank state builder (shape-safe)
+// Build a blank state with correct shape
 function wsGetBlankState() {
     const st = (typeof wsGetState === 'function') ? wsGetState() : { executive:{}, headless:{} };
     st.executive = st.executive || {};
@@ -2458,190 +2458,137 @@ function wsGetBlankState() {
     return st;
 }
 
-async function ghSyncList() {
-    ghBadge('Syncing list...');
-    const data = await ghListDashboards();
-    const list = Array.isArray(data.dashboards) ? data.dashboards : [];
-    ghStore.workspaces = {};
-    list.forEach(item => {
-        ghStore.workspaces[item.id] = {
-            id: item.id,
-            name: item.name || item.id,
-            createdAt: item.createdAt || item.updatedAt || new Date().toISOString(),
-            updatedAt: item.updatedAt || new Date().toISOString(),
-            state: null
-        };
-    });
-    wsRefreshSelect();
-    ghBadge('List synced');
-    return list;
-}
+// Override: Clear storage is removed
+function wsClearLocalStorage() { alert('Clear Storage is removed.'); }
 
-async function ghLoadAndApply(id) {
-    if (!id) return;
-    ghBadge('Loading '+id+'...');
-    const data = await ghGetDashboard(id);
-    const state = data.state || null;
-    if (state) {
-        // Apply with silent:false to force full re-render
-        wsApplyState(state, { silent:false });
-        try { wsLastSerialized = JSON.stringify(state || {}); } catch(e) {}
-        ghBadge('Loaded ✓');
-        wsSetIndicator('Loaded ✓', true);
-    } else {
-        // no state exists - apply blank
-        const blank = wsGetBlankState();
-        wsApplyState(blank, { silent:false });
-        try { wsLastSerialized = JSON.stringify(blank || {}); } catch(e) {}
-        ghBadge('Empty dashboard');
-        wsSetIndicator('Empty dashboard', true);
-    }
-}
-
-// Override select workspace to always fetch from GitHub
-async function wsSelectWorkspace(id) {
-    wsCurrentId = id;
-    ghSetDashInUrl(id);
-    await ghLoadAndApply(id);
-}
-
-// Override save to GitHub
+// Override: Save always writes to GitHub
 async function wsSaveNow() {
     if (wsIsApplying) return;
     if (!wsCurrentId) return;
     const state = wsGetState();
-    const store = wsLoadStore();
-    const w = store.workspaces[wsCurrentId];
     state.__meta = state.__meta || {};
-    state.__meta.name = (w && w.name) ? w.name : (state.__meta.name || null);
+    // keep workspace name
+    try {
+        const store = wsLoadStore();
+        const w = store && store.workspaces ? store.workspaces[wsCurrentId] : null;
+        if (w && w.name) state.__meta.name = w.name;
+    } catch(e) {}
 
     wsSetIndicator('Saving...', true);
     ghBadge('Saving...');
-    const res = await ghSaveDashboard(wsCurrentId, state);
-    if (res.commitUrl) console.log('[GitHub] Commit URL:', res.commitUrl);
-    wsLastSerialized = JSON.stringify(state);
-    wsSetIndicator('Saved ✓ ' + new Date().toLocaleTimeString(), true);
-    ghBadge('Saved ✓');
-    await ghSyncList();
+    try {
+        const res = await ghSave(wsCurrentId, state);
+        if (res.commitUrl) console.log('[GitHub] Commit URL:', res.commitUrl);
+        wsLastSerialized = JSON.stringify(state);
+        wsSetIndicator('Saved ✓ ' + new Date().toLocaleTimeString(), true);
+        ghBadge('Saved ✓');
+    } catch(e) {
+        console.error(e);
+        wsSetIndicator('Save failed (see console)', false);
+        ghBadge('Save failed', true);
+    }
 }
 
-// Override create workspace: always start blank, apply immediately, then save
+// Override: Selecting a dashboard -> FULL RESET via reload
+async function wsSelectWorkspace(id) {
+    wsCurrentId = id;
+    ghBadge('Switching (reset)...');
+    if (window.__HARD_RESET_ON_SWITCH__) {
+        ghHardReloadWithDash(id);
+        return;
+    }
+}
+
+// Override: New dashboard -> apply blank immediately + save blank + reload
 async function wsCreateWorkspace(name, baseState=null) {
     const id = (typeof generateUUID === 'function') ? generateUUID() : ('ws-' + Date.now());
     wsCurrentId = id;
-    ghSetDashInUrl(id);
 
     const blank = wsGetBlankState();
     blank.__meta = blank.__meta || {};
     blank.__meta.name = (name || 'New Dashboard').trim();
 
-    // Apply immediately so UI resets instantly
+    // Apply immediately so UI clears now
     wsApplyState(blank, { silent:false });
     try { wsLastSerialized = JSON.stringify(blank || {}); } catch(e) {}
 
     ghBadge('Creating...');
-    await ghSaveDashboard(id, blank);
+    await ghSave(id, blank);
 
-    // add to store and refresh dropdown
-    ghStore.workspaces[id] = { id, name: blank.__meta.name, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), state: null };
-    await ghSyncList();
-
-    // select it (loads again but should be same)
-    await wsSelectWorkspace(id);
+    // Hard reload to guarantee complete reset
+    setTimeout(() => ghHardReloadWithDash(id), 350);
     return id;
 }
 
-async function wsRenameCurrent() {
-    if (!wsCurrentId) return;
-    const store = wsLoadStore();
-    const w = store.workspaces[wsCurrentId];
-    const newName = prompt('Rename dashboard', (w && w.name) ? w.name : '');
-    if (newName === null) return;
-    if (w) w.name = newName.trim() || w.name;
-    await wsSaveNow();
-}
-
-async function wsDuplicateCurrent() {
-    if (!wsCurrentId) return;
-    const store = wsLoadStore();
-    const w = store.workspaces[wsCurrentId];
-    const base = wsGetState();
-    const newName = ((w && w.name) ? w.name : 'Dashboard') + ' (Copy)';
-    // Create with baseState copy
-    const id = (typeof generateUUID === 'function') ? generateUUID() : ('ws-' + Date.now());
-    const copied = wsSafeClone(base);
-    copied.__meta = copied.__meta || {};
-    copied.__meta.name = newName;
-    wsCurrentId = id;
-    ghSetDashInUrl(id);
-    wsApplyState(copied, { silent:false });
-    await ghSaveDashboard(id, copied);
-    await ghSyncList();
-    await wsSelectWorkspace(id);
-}
-
-async function wsDeleteCurrent() {
-    if (!wsCurrentId) return;
-    const store = wsLoadStore();
-    const w = store.workspaces[wsCurrentId];
-    if (!confirm(`Delete dashboard "${w ? w.name : wsCurrentId}" from GitHub?`)) return;
-    await ghDeleteDashboard(wsCurrentId);
-    await ghSyncList();
-    const list = wsList();
-    wsCurrentId = list[0] ? list[0].id : null;
-    if (wsCurrentId) await wsSelectWorkspace(wsCurrentId);
-    else wsSetIndicator('No dashboards left', false);
-}
-
-// Auto-save every 25s if changed
-function wsStartAutoSave() {
-    if (ghAutoSaveTimer) return;
-    ghAutoSaveTimer = setInterval(async () => {
-        if (!wsCurrentId || wsIsApplying) return;
-        try {
-            const state = wsGetState();
-            const ser = JSON.stringify(state);
-            if (wsLastSerialized === null) { wsLastSerialized = ser; return; }
-            if (ser !== wsLastSerialized) {
-                await wsSaveNow();
-            }
-        } catch(e) { console.warn(e); }
-    }, 25000);
-}
-
-// Clear storage removed
-function wsClearLocalStorage() { alert('Clear Storage is removed.'); }
-
-// Override init: load list, pick URL dash or first, then load state
+// Override init: fetch list, set dropdown, load selected dashboard state
 async function wsInitWorkspaceManager() {
     try {
-        const list = await ghSyncList();
+        ghBadge('Loading list...');
+        const listResp = await ghList();
+        const dashboards = Array.isArray(listResp.dashboards) ? listResp.dashboards : [];
+
+        // Populate local store object used by UI
+        const store = wsLoadStore();
+        store.workspaces = store.workspaces || {};
+        store.workspaces = {};
+        dashboards.forEach(d => {
+            store.workspaces[d.id] = { id: d.id, name: d.name || d.id, createdAt: d.createdAt || d.updatedAt, updatedAt: d.updatedAt, state: null };
+        });
+
+        // Refresh UI select
+        wsRefreshSelect();
+
         let id = ghGetDashFromUrl();
-        if (!id) id = list[0] ? list[0].id : null;
-        if (id) {
-            wsCurrentId = id;
-            ghSetDashInUrl(id);
-            await ghLoadAndApply(id);
-        } else {
-            // no dashboards exist, create default
-            await wsCreateWorkspace('Default');
+        if (!id) {
+            // default to first existing dashboard
+            id = dashboards[0] ? dashboards[0].id : null;
         }
+
+        if (!id) {
+            // none exists => create Default
+            await wsCreateWorkspace('Default');
+            return;
+        }
+
+        wsCurrentId = id;
+        // set dropdown value
+        const sel = document.getElementById('ws-select');
+        if (sel) sel.value = id;
+
+        ghBadge('Loading state...');
+        const data = await ghGet(id);
+        const state = data.state || null;
+
+        if (state) {
+            wsApplyState(state, { silent:false });
+            try { wsLastSerialized = JSON.stringify(state || {}); } catch(e) {}
+            wsSetIndicator('Loaded ✓', true);
+            ghBadge('Loaded ✓');
+        } else {
+            const blank = wsGetBlankState();
+            wsApplyState(blank, { silent:false });
+            try { wsLastSerialized = JSON.stringify(blank || {}); } catch(e) {}
+            wsSetIndicator('Empty dashboard', true);
+            ghBadge('Empty');
+        }
+
     } catch(e) {
         console.error(e);
+        wsSetIndicator('Init failed (see console)', false);
         ghBadge('Init failed', true);
-        wsSetIndicator('GitHub init failed (see console)', false);
     }
 
-    // hook select change to our overridden wsSelectWorkspace
+    // Wire select change to hard reset
     const select = document.getElementById('ws-select');
-    if (select && !select.__ghwired) {
-        select.__ghwired = true;
+    if (select && !select.__wiredGhReset) {
+        select.__wiredGhReset = true;
         select.addEventListener('change', (e) => wsSelectWorkspace(e.target.value));
     }
-    // hook import file to create new dashboard
+
+    // Hook import file
     const importEl = document.getElementById('ws-import-file');
-    if (importEl && !importEl.__ghwired) {
-        importEl.__ghwired = true;
+    if (importEl && !importEl.__wiredGhReset) {
+        importEl.__wiredGhReset = true;
         importEl.addEventListener('change', async (e) => {
             const f = e.target.files && e.target.files[0];
             if (f) await wsImportFile(f);
@@ -2649,7 +2596,8 @@ async function wsInitWorkspaceManager() {
         });
     }
 
-    wsStartAutoSave();
+    // Disable local autosave tick that writes to local storage; keep existing timer but route to GitHub
+    try { wsStartAutoSave(); } catch(e) {}
 }
 
 </script>
