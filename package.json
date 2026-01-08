@@ -1,6 +1,5 @@
 {
   "name": "easytrack-dashboard",
   "private": true,
-  "type": "module",
   "dependencies": {}
 }
