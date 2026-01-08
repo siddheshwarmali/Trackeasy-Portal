@@ -555,6 +555,11 @@
     </style>
 </head>
 <body>
+
+<div id="ghsync-badge" style="position:fixed;right:12px;bottom:12px;z-index:9999;background:#0b1220cc;color:#fff;padding:8px 10px;border-radius:10px;font-size:12px;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.12)">
+  GitHub Sync: <span id="ghsync-status" style="color:#86efac">Idle</span>
+</div>
+
     <div class="container">
         <!-- Controls First -->
         <div class="controls-container">
@@ -2351,7 +2356,272 @@ window.onload = function() {
             try { if (typeof loadedTicketData !== "undefined" && loadedTicketData && typeof generateDashboard === "function") generateDashboard(); } catch(e) {}
             window.addEventListener('message', (e) => { if (e.data && e.data.type === 'REQUEST_ADO_SYNC_RUN') openAdoModal('run'); if(e.data && e.data.type === 'BAU_UPDATE') { bauData = e.data.payload; renderBauStats(); } });
         };
-    </script>
+    
+
+// =========================
+// GITHUB SYNC MODE (FULL FEATURES) - v2
+// - Keeps all UI/features.
+// - Replaces browser localStorage persistence with GitHub-backed store via Netlify Function.
+// - Each workspace/dashboard is a separate file in GitHub: data/dashboards/<id>.json
+// =========================
+const GH_ENDPOINT = '/.netlify/functions/state';
+const GH_URL_PARAM = 'dash';
+// Use a different timer name to avoid colliding with existing wsAutoSaveTimer.
+let ghAutoSaveTimer = null;
+
+function ghBadge(msg, isErr=false) {
+    const el = document.getElementById('ghsync-status');
+    if (el) {
+        el.textContent = msg;
+        el.style.color = isErr ? '#fca5a5' : '#86efac';
+    }
+    console[isErr ? 'error' : 'log']('[GitHubSync]', msg);
+}
+
+function ghGetDashFromUrl() {
+    try { return new URL(window.location.href).searchParams.get(GH_URL_PARAM); } catch { return null; }
+}
+function ghSetDashInUrl(id) {
+    try {
+        const u = new URL(window.location.href);
+        u.searchParams.set(GH_URL_PARAM, id);
+        window.history.replaceState({}, '', u.toString());
+    } catch {}
+}
+
+async function ghRequest(method, params={}, body=null) {
+    const u = new URL(GH_ENDPOINT, window.location.origin);
+    Object.entries(params).forEach(([k,v]) => { if (v!==undefined && v!==null) u.searchParams.set(k, String(v)); });
+    const opt = { method, headers: { 'Accept':'application/json' } };
+    if (body !== null) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    const r = await fetch(u.toString(), opt);
+    const raw = await r.text();
+    let data = {};
+    try { data = JSON.parse(raw || '{}'); } catch(e) { data = { error: 'Invalid JSON from server', raw }; }
+    if (!r.ok) throw new Error(`${method} ${r.status} ${r.statusText}: ${raw}`);
+    if (data.error) throw new Error(data.error + (data.details ? (' :: '+JSON.stringify(data.details)) : ''));
+    return data;
+}
+
+const ghListDashboards = () => ghRequest('GET', { list: 1 });
+const ghGetDashboard = (id) => ghRequest('GET', { dash: id });
+const ghSaveDashboard = (id, state) => ghRequest('POST', { dash: id }, { state });
+const ghDeleteDashboard = (id) => ghRequest('DELETE', { dash: id });
+
+// In-memory store to satisfy existing UI logic
+let ghStore = { schemaVersion: WS_SCHEMA_VERSION, workspaces: {}, lastSerial: 0 };
+function wsLoadStore() { return ghStore; }
+function wsSaveStore(_) { /* no local */ }
+
+async function ghRefreshStoreAndUI(selectIdToSet=null) {
+    ghBadge('Syncing list...');
+    const data = await ghListDashboards();
+    const list = Array.isArray(data.dashboards) ? data.dashboards : [];
+    ghStore.workspaces = {};
+    list.forEach(item => {
+        ghStore.workspaces[item.id] = {
+            id: item.id,
+            name: item.name || item.id,
+            createdAt: item.createdAt || item.updatedAt || new Date().toISOString(),
+            updatedAt: item.updatedAt || new Date().toISOString(),
+            state: null
+        };
+    });
+    wsRefreshSelect();
+    if (selectIdToSet) {
+        const sel = document.getElementById('ws-select');
+        if (sel) sel.value = selectIdToSet;
+    }
+    ghBadge('List synced');
+}
+
+async function ghLoadStateIntoWorkspace(id) {
+    ghBadge('Loading ' + id + ' ...');
+    const data = await ghGetDashboard(id);
+    const state = data.state || null;
+    if (state) {
+        ghStore.workspaces[id] = ghStore.workspaces[id] || { id, name:id, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), state:null };
+        ghStore.workspaces[id].state = state;
+        if (state.__meta && state.__meta.name) ghStore.workspaces[id].name = state.__meta.name;
+        wsApplyState(state, { silent:true });
+        try { wsLastSerialized = JSON.stringify(state || {}); } catch(e) {}
+        wsSetIndicator('Loaded ✓', true);
+        ghBadge('Loaded ✓');
+    } else {
+        wsSetIndicator('No cloud data yet', false);
+        ghBadge('No saved state');
+    }
+}
+
+// Override init: load list, then select by URL or first.
+async function wsInitWorkspaceManager() {
+    try {
+        await ghRefreshStoreAndUI();
+        let id = ghGetDashFromUrl();
+        const list = wsList();
+        if (!id) id = list[0] ? list[0].id : null;
+
+        if (!id) {
+            // create initial dashboard
+            const newId = generateUUID();
+            const emptyState = wsGetState();
+            emptyState.__meta = emptyState.__meta || {};
+            emptyState.__meta.name = 'Default';
+            await ghSaveDashboard(newId, emptyState);
+            ghSetDashInUrl(newId);
+            wsCurrentId = newId;
+            await ghRefreshStoreAndUI(newId);
+            await ghLoadStateIntoWorkspace(newId);
+        } else {
+            wsCurrentId = id;
+            ghSetDashInUrl(id);
+            await ghLoadStateIntoWorkspace(id);
+        }
+    } catch (e) {
+        console.error(e);
+        wsSetIndicator('GitHub sync failed (see console)', false);
+        ghBadge('Init failed', true);
+    }
+
+    // Hook select change
+    const select = document.getElementById('ws-select');
+    if (select && !select.__ghwired) {
+        select.__ghwired = true;
+        select.addEventListener('change', async (e) => {
+            const id = e.target.value;
+            wsCurrentId = id;
+            ghSetDashInUrl(id);
+            await ghLoadStateIntoWorkspace(id);
+        });
+    }
+
+    wsStartAutoSave();
+}
+
+// Save to GitHub
+async function wsSaveNow() {
+    if (wsIsApplying) return;
+    if (!wsCurrentId) return;
+    const state = wsGetState();
+    const store = wsLoadStore();
+    const w = store.workspaces[wsCurrentId];
+    state.__meta = state.__meta || {};
+    state.__meta.name = (w && w.name) ? w.name : (state.__meta.name || null);
+
+    wsSetIndicator('Saving...', true);
+    ghBadge('Saving...');
+    try {
+        const res = await ghSaveDashboard(wsCurrentId, state);
+        if (res.commitUrl) console.log('[GitHub] Commit URL:', res.commitUrl);
+        wsLastSerialized = JSON.stringify(state);
+        wsSetIndicator('Saved ✓ ' + new Date().toLocaleTimeString(), true);
+        ghBadge('Saved ✓');
+        await ghRefreshStoreAndUI(wsCurrentId);
+    } catch (e) {
+        console.error(e);
+        wsSetIndicator('Save failed (see console)', false);
+        ghBadge('Save failed', true);
+    }
+}
+
+// Auto-save to GitHub when changed (every 20s)
+function wsStartAutoSave() {
+    if (ghAutoSaveTimer) return;
+    ghAutoSaveTimer = setInterval(async () => {
+        if (!wsCurrentId || wsIsApplying) return;
+        try {
+            const state = wsGetState();
+            const ser = JSON.stringify(state);
+            if (wsLastSerialized === null) { wsLastSerialized = ser; return; }
+            if (ser !== wsLastSerialized) {
+                await wsSaveNow();
+            }
+        } catch(e) {
+            console.warn(e);
+        }
+    }, 20000);
+}
+
+// Create/Rename/Duplicate/Delete backed by GitHub
+async function wsCreateWorkspace(name, baseState=null) {
+    const id = generateUUID();
+    const state = baseState || wsGetState();
+    state.__meta = state.__meta || {};
+    state.__meta.name = name || 'New';
+    await ghSaveDashboard(id, state);
+    wsCurrentId = id;
+    ghSetDashInUrl(id);
+    await ghRefreshStoreAndUI(id);
+    await ghLoadStateIntoWorkspace(id);
+    return id;
+}
+
+async function wsRenameCurrent() {
+    if (!wsCurrentId) return;
+    const store = wsLoadStore();
+    const w = store.workspaces[wsCurrentId];
+    const newName = prompt('Rename dashboard', (w && w.name) ? w.name : '');
+    if (newName === null) return;
+    if (w) w.name = newName.trim() || w.name;
+    await wsSaveNow();
+}
+
+async function wsDuplicateCurrent() {
+    if (!wsCurrentId) return;
+    const store = wsLoadStore();
+    const w = store.workspaces[wsCurrentId];
+    const base = wsGetState();
+    const newName = ((w && w.name) ? w.name : 'Dashboard') + ' (Copy)';
+    await wsCreateWorkspace(newName, base);
+}
+
+async function wsDeleteCurrent() {
+    if (!wsCurrentId) return;
+    if (!confirm('Delete this dashboard from GitHub?')) return;
+    const id = wsCurrentId;
+    try {
+        await ghDeleteDashboard(id);
+        ghBadge('Deleted ✓');
+        await ghRefreshStoreAndUI();
+        const list = wsList();
+        wsCurrentId = list[0] ? list[0].id : null;
+        if (wsCurrentId) {
+            ghSetDashInUrl(wsCurrentId);
+            await ghLoadStateIntoWorkspace(wsCurrentId);
+        } else {
+            wsSetIndicator('No dashboards left', false);
+        }
+    } catch (e) {
+        console.error(e);
+        ghBadge('Delete failed', true);
+    }
+}
+
+// Export/Import keep working (client-side)
+function wsExportCurrent() {
+    if (!wsCurrentId) return;
+    const state = wsGetState();
+    const payload = { exportVersion: 2, exportedAt: new Date().toISOString(), id: wsCurrentId, state };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `dashboard_${wsCurrentId}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+    wsSetIndicator('Exported ✓', true);
+}
+
+async function wsImportFile(file) {
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    const st = payload.state || payload.workspace?.state || payload;
+    const name = (st.__meta && st.__meta.name) ? st.__meta.name : (payload.id || 'Imported');
+    await wsCreateWorkspace(name, st);
+}
+
+</script>
 
     <!-- Workspace Modal (NEW) -->
     <div id="ws-modal" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
