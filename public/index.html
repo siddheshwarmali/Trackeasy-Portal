@@ -42,6 +42,14 @@
         .l3-row:hover .delete-btn { opacity: 1; pointer-events: auto; }
         .delete-btn { opacity: 0; transition: opacity 0.2s; }
     </style>
+
+<style>
+  /* HIDE_CLEAR_STORAGE_BTN */
+  button[onclick="wsClearLocalStorage()"], button[onclick="wsClearLocalStorage()"] * { display:none !important; }
+  /* also match inline handlers that start with wsClearLocalStorage */
+  button[onclick^="wsClearLocalStorage"] { display:none !important; }
+</style>
+
 </head>
 <body class="text-gray-800">
 
@@ -553,6 +561,14 @@
         .delete-btn { padding: 5px 10px; background: rgba(239, 68, 68, 0.2); color: #f87171; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
         .delete-btn:hover { background: rgba(239, 68, 68, 0.4); }
     </style>
+
+<style>
+  /* HIDE_CLEAR_STORAGE_BTN */
+  button[onclick="wsClearLocalStorage()"], button[onclick="wsClearLocalStorage()"] * { display:none !important; }
+  /* also match inline handlers that start with wsClearLocalStorage */
+  button[onclick^="wsClearLocalStorage"] { display:none !important; }
+</style>
+
 </head>
 <body>
     <div class="container">
@@ -2351,7 +2367,12 @@ window.onload = function() {
             try { if (typeof loadedTicketData !== "undefined" && loadedTicketData && typeof generateDashboard === "function") generateDashboard(); } catch(e) {}
             window.addEventListener('message', (e) => { if (e.data && e.data.type === 'REQUEST_ADO_SYNC_RUN') openAdoModal('run'); if(e.data && e.data.type === 'BAU_UPDATE') { bauData = e.data.payload; renderBauStats(); } });
         };
-    </script>
+    
+        // Override: Clear Storage removed in GitHub mode
+        function wsClearLocalStorage() {
+            alert('Clear Storage feature has been removed.');
+        }
+</script>
 
     <!-- Workspace Modal (NEW) -->
     <div id="ws-modal" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
