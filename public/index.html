@@ -44,7 +44,8 @@
     </style>
 
     <style>
-      /* HIDE_CLEAR_STORAGE_BTN */
+      @keyframes ghspin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+      /* Hide Clear Storage button */
       button[onclick^="wsClearLocalStorage"], button[onclick="wsClearLocalStorage()"] { display:none !important; }
     </style>
 </head>
@@ -560,14 +561,23 @@
     </style>
 
     <style>
-      /* HIDE_CLEAR_STORAGE_BTN */
+      @keyframes ghspin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+      /* Hide Clear Storage button */
       button[onclick^="wsClearLocalStorage"], button[onclick="wsClearLocalStorage()"] { display:none !important; }
     </style>
 </head>
 <body>
 
-<div id="ghsync-badge" style="position:fixed;right:12px;bottom:12px;z-index:9999;background:#0b1220cc;color:#fff;padding:8px 10px;border-radius:10px;font-size:12px;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.12)">
-  GitHub Sync: <span id="ghsync-status" style="color:#86efac">Idle</span>
+<div id="gh-reset-overlay" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,0.55);backdrop-filter:blur(4px);">
+  <div style="position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);background:#0b1220; color:#fff; padding:18px 20px;border-radius:14px; width:min(520px,92vw); border:1px solid rgba(255,255,255,0.12); box-shadow:0 12px 40px rgba(0,0,0,0.35);">
+    <div style="display:flex;gap:12px;align-items:center;">
+      <div style="width:22px;height:22px;border-radius:999px;border:3px solid rgba(255,255,255,0.25);border-top-color:#22c55e;animation:ghspin 0.8s linear infinite;"></div>
+      <div>
+        <div style="font-weight:700;font-size:14px;">Loading dashboard…</div>
+        <div id="gh-reset-msg" style="opacity:0.85;font-size:12px;margin-top:2px;">Resetting view and fetching from GitHub</div>
+      </div>
+    </div>
+  </div>
 </div>
 
     <div class="container">
@@ -2369,62 +2379,54 @@ window.onload = function() {
     
 
 // =========================
-// GITHUB SYNC + HARD RESET (v5)
-// Goal: Whole dashboard resets on dashboard switch / new dashboard.
-// Strategy:
-// 1) On dashboard select/new: update URL (?dash=ID) + hard reload (clears all JS/DOM state).
-// 2) On page load: fetch dashboard state from GitHub (via Netlify function) and render (silent:false).
-// 3) Save writes full state to GitHub.
+// GITHUB SYNC (v6) - SOFT FULL RESET + LOADING OVERLAY
+// - No hard reload; preserves all features.
+// - On dashboard switch/new: apply blank state, show overlay, fetch from GitHub, apply state, hide overlay.
+// - Save writes to GitHub.
 // =========================
 
-const GH_ENDPOINT = '/.netlify/functions/state';
-const GH_URL_PARAM = 'dash';
-window.__HARD_RESET_ON_SWITCH__ = true;
+const GH6_ENDPOINT = '/.netlify/functions/state';
+const GH6_PARAM = 'dash';
 
-function ghBadge(msg, isErr=false) {
-    const el = document.getElementById('ghsync-status');
-    if (el) {
-        el.textContent = msg;
-        el.style.color = isErr ? '#fca5a5' : '#86efac';
-    }
-    console[isErr ? 'error' : 'log']('[GitHubSync]', msg);
+function gh6Overlay(show, msg) {
+    const ov = document.getElementById('gh-reset-overlay');
+    const m = document.getElementById('gh-reset-msg');
+    if (m && msg) m.textContent = msg;
+    if (ov) ov.style.display = show ? 'block' : 'none';
 }
 
-function ghHardReloadWithDash(id) {
+function gh6GetDashFromUrl() {
+    try { return new URL(window.location.href).searchParams.get(GH6_PARAM); } catch { return null; }
+}
+function gh6SetDashInUrl(id) {
     try {
         const u = new URL(window.location.href);
-        u.searchParams.set(GH_URL_PARAM, id);
-        u.searchParams.set('_ts', Date.now().toString());
-        window.location.assign(u.toString());
-    } catch (e) {
-        window.location.reload();
-    }
+        u.searchParams.set(GH6_PARAM, id);
+        window.history.replaceState({}, '', u.toString());
+    } catch {}
 }
 
-function ghGetDashFromUrl() {
-    try { return new URL(window.location.href).searchParams.get(GH_URL_PARAM); } catch { return null; }
-}
-
-async function ghRequest(method, params={}, body=null) {
-    const u = new URL(GH_ENDPOINT, window.location.origin);
+async function gh6Request(method, params={}, body=null) {
+    const u = new URL(GH6_ENDPOINT, window.location.origin);
     Object.entries(params).forEach(([k,v]) => { if (v!==undefined && v!==null) u.searchParams.set(k, String(v)); });
     const opt = { method, headers: { 'Accept':'application/json' } };
     if (body !== null) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
     const r = await fetch(u.toString(), opt);
     const raw = await r.text();
     let data = {};
-    try { data = JSON.parse(raw || '{}'); } catch(e) { data = { error: 'Invalid JSON from server', raw }; }
+    try { data = JSON.parse(raw || '{}'); } catch(e) { data = { error:'Invalid JSON', raw }; }
     if (!r.ok) throw new Error(`${method} ${r.status} ${r.statusText}: ${raw}`);
     if (data.error) throw new Error(data.error + (data.details ? (' :: '+JSON.stringify(data.details)) : ''));
     return data;
 }
 
-const ghList = () => ghRequest('GET', { list: 1 });
-const ghGet  = (id) => ghRequest('GET', { dash: id });
-const ghSave = (id, state) => ghRequest('POST', { dash: id }, { state });
+const gh6List = () => gh6Request('GET', { list: 1 });
+const gh6Get = (id) => gh6Request('GET', { dash: id });
+const gh6Save = (id, state) => gh6Request('POST', { dash: id }, { state });
+const gh6Delete = (id) => gh6Request('DELETE', { dash: id });
 
-// Build a blank state with correct shape
-function wsGetBlankState() {
+// blank state builder - clears ALL major collections
+function gh6BlankState(name) {
     const st = (typeof wsGetState === 'function') ? wsGetState() : { executive:{}, headless:{} };
     st.executive = st.executive || {};
     st.headless = st.headless || {};
@@ -2437,6 +2439,7 @@ function wsGetBlankState() {
     st.executive.profileToDisciplineMap = {};
     st.executive.tempAdoTasks = [];
     st.executive.l2Data = [];
+    st.executive.bauData = { totalTickets:0, withinSLA:0, breachedSLA:0, slaPercentage:'0' };
     st.executive.expandedDiscipline = 'ALL';
     st.executive.activeUsStage = 'New';
     st.executive.activeBugStage = 'New';
@@ -2446,159 +2449,206 @@ function wsGetBlankState() {
     st.executive.savedSummaryText = null;
     st.executive.adoSyncSource = null;
     st.executive.adoConfig = { organization:'', project:'', queryId:'' };
-    st.executive.bauData = st.executive.bauData || {};
-    st.executive.bauData.totalTickets = 0;
-    st.executive.bauData.withinSLA = 0;
-    st.executive.bauData.breachedSLA = 0;
-    st.executive.bauData.slaPercentage = '0';
     st.headless.loadedTicketData = null;
     st.__meta = st.__meta || {};
-    st.__meta.name = null;
+    st.__meta.name = name || null;
     st.__meta.createdFrom = 'blank';
     return st;
 }
 
-// Override: Clear storage is removed
+// Remove clear storage
 function wsClearLocalStorage() { alert('Clear Storage is removed.'); }
 
-// Override: Save always writes to GitHub
+// Load list from GitHub and fill workspace store (keeps existing UI)
+async function gh6SyncListIntoStore() {
+    const store = wsLoadStore();
+    const data = await gh6List();
+    const list = Array.isArray(data.dashboards) ? data.dashboards : [];
+    // keep existing store object but replace workspaces
+    store.workspaces = {};
+    list.forEach(d => {
+        store.workspaces[d.id] = {
+            id: d.id,
+            name: d.name || d.id,
+            createdAt: d.createdAt || d.updatedAt || new Date().toISOString(),
+            updatedAt: d.updatedAt || new Date().toISOString(),
+            state: null
+        };
+    });
+    wsSaveStore(store);
+    wsRefreshSelect();
+    return list;
+}
+
+// Override select workspace: full reset + fetch
+async function wsSelectWorkspace(id, { saveCurrent=true } = {}) {
+    if (!id || id === wsCurrentId) return;
+
+    // Save current (to GitHub) before switch
+    if (saveCurrent && wsCurrentId) {
+        try { await wsSaveNow(); } catch(e) { console.warn('pre-save failed', e); }
+    }
+
+    wsCurrentId = id;
+    gh6SetDashInUrl(id);
+
+    // Reset UI immediately
+    gh6Overlay(true, 'Resetting view...');
+    try {
+        const blank = gh6BlankState();
+        wsApplyState(blank, { silent:false });
+    } catch(e) {}
+
+    // Fetch latest from GitHub and apply
+    try {
+        gh6Overlay(true, 'Fetching from GitHub...');
+        const data = await gh6Get(id);
+        const state = data.state || null;
+        if (state) {
+            wsApplyState(state, { silent:false });
+            wsSetIndicator('Loaded ✓', true);
+        } else {
+            wsSetIndicator('Empty dashboard', true);
+        }
+    } catch(e) {
+        console.error(e);
+        wsSetIndicator('Load failed (see console)', false);
+    } finally {
+        gh6Overlay(false);
+    }
+
+    wsRefreshSelect();
+}
+
+// Override save: write to GitHub
 async function wsSaveNow() {
     if (wsIsApplying) return;
     if (!wsCurrentId) return;
     const state = wsGetState();
-    state.__meta = state.__meta || {};
-    // keep workspace name
+    // sync name
     try {
         const store = wsLoadStore();
-        const w = store && store.workspaces ? store.workspaces[wsCurrentId] : null;
+        const w = store.workspaces && store.workspaces[wsCurrentId];
+        state.__meta = state.__meta || {};
         if (w && w.name) state.__meta.name = w.name;
     } catch(e) {}
 
     wsSetIndicator('Saving...', true);
-    ghBadge('Saving...');
+    gh6Overlay(true, 'Saving to GitHub...');
     try {
-        const res = await ghSave(wsCurrentId, state);
+        const res = await gh6Save(wsCurrentId, state);
         if (res.commitUrl) console.log('[GitHub] Commit URL:', res.commitUrl);
         wsLastSerialized = JSON.stringify(state);
         wsSetIndicator('Saved ✓ ' + new Date().toLocaleTimeString(), true);
-        ghBadge('Saved ✓');
+        await gh6SyncListIntoStore();
     } catch(e) {
         console.error(e);
         wsSetIndicator('Save failed (see console)', false);
-        ghBadge('Save failed', true);
+        throw e;
+    } finally {
+        gh6Overlay(false);
     }
 }
 
-// Override: Selecting a dashboard -> FULL RESET via reload
-async function wsSelectWorkspace(id) {
-    wsCurrentId = id;
-    ghBadge('Switching (reset)...');
-    if (window.__HARD_RESET_ON_SWITCH__) {
-        ghHardReloadWithDash(id);
-        return;
-    }
-}
-
-// Override: New dashboard -> apply blank immediately + save blank + reload
+// Override create workspace: always create blank (reset) and save
 async function wsCreateWorkspace(name, baseState=null) {
+    const store = wsLoadStore();
     const id = (typeof generateUUID === 'function') ? generateUUID() : ('ws-' + Date.now());
+    const now = new Date().toISOString();
+
+    // Build initial state
+    const initState = baseState ? wsSafeClone(baseState) : gh6BlankState(name);
+    initState.__meta = initState.__meta || {};
+    initState.__meta.name = name;
+
+    // Reset UI immediately for NEW dashboard
     wsCurrentId = id;
+    gh6SetDashInUrl(id);
+    gh6Overlay(true, 'Creating new dashboard...');
+    wsApplyState(gh6BlankState(name), { silent:false });
 
-    const blank = wsGetBlankState();
-    blank.__meta = blank.__meta || {};
-    blank.__meta.name = (name || 'New Dashboard').trim();
+    // Save to GitHub
+    await gh6Save(id, initState);
 
-    // Apply immediately so UI clears now
-    wsApplyState(blank, { silent:false });
-    try { wsLastSerialized = JSON.stringify(blank || {}); } catch(e) {}
-
-    ghBadge('Creating...');
-    await ghSave(id, blank);
-
-    // Hard reload to guarantee complete reset
-    setTimeout(() => ghHardReloadWithDash(id), 350);
+    // Update store + UI
+    store.workspaces[id] = { id, name, createdAt: now, updatedAt: now, state: null };
+    wsSaveStore(store);
+    wsRefreshSelect();
+    // Now load it properly (from GitHub)
+    await wsSelectWorkspace(id, { saveCurrent:false });
+    gh6Overlay(false);
     return id;
 }
 
-// Override init: fetch list, set dropdown, load selected dashboard state
-async function wsInitWorkspaceManager() {
+// Override delete to delete from GitHub
+async function wsDeleteCurrent() {
+    if (!wsCurrentId) return;
+    const store = wsLoadStore();
+    const w = store.workspaces[wsCurrentId];
+    if (!confirm(`Delete workspace "${w ? w.name : wsCurrentId}"? This cannot be undone.`)) return;
+    gh6Overlay(true, 'Deleting from GitHub...');
     try {
-        ghBadge('Loading list...');
-        const listResp = await ghList();
-        const dashboards = Array.isArray(listResp.dashboards) ? listResp.dashboards : [];
-
-        // Populate local store object used by UI
-        const store = wsLoadStore();
-        store.workspaces = store.workspaces || {};
-        store.workspaces = {};
-        dashboards.forEach(d => {
-            store.workspaces[d.id] = { id: d.id, name: d.name || d.id, createdAt: d.createdAt || d.updatedAt, updatedAt: d.updatedAt, state: null };
-        });
-
-        // Refresh UI select
+        await gh6Delete(wsCurrentId);
+        delete store.workspaces[wsCurrentId];
+        wsSaveStore(store);
         wsRefreshSelect();
-
-        let id = ghGetDashFromUrl();
-        if (!id) {
-            // default to first existing dashboard
-            id = dashboards[0] ? dashboards[0].id : null;
-        }
-
-        if (!id) {
-            // none exists => create Default
-            await wsCreateWorkspace('Default');
-            return;
-        }
-
-        wsCurrentId = id;
-        // set dropdown value
-        const sel = document.getElementById('ws-select');
-        if (sel) sel.value = id;
-
-        ghBadge('Loading state...');
-        const data = await ghGet(id);
-        const state = data.state || null;
-
-        if (state) {
-            wsApplyState(state, { silent:false });
-            try { wsLastSerialized = JSON.stringify(state || {}); } catch(e) {}
-            wsSetIndicator('Loaded ✓', true);
-            ghBadge('Loaded ✓');
-        } else {
-            const blank = wsGetBlankState();
-            wsApplyState(blank, { silent:false });
-            try { wsLastSerialized = JSON.stringify(blank || {}); } catch(e) {}
-            wsSetIndicator('Empty dashboard', true);
-            ghBadge('Empty');
-        }
-
+        const first = wsList()[0];
+        wsCurrentId = first ? first.id : null;
+        if (wsCurrentId) await wsSelectWorkspace(wsCurrentId, { saveCurrent:false });
+        else { wsApplyState(gh6BlankState(), { silent:false }); }
     } catch(e) {
         console.error(e);
-        wsSetIndicator('Init failed (see console)', false);
-        ghBadge('Init failed', true);
+        wsSetIndicator('Delete failed (see console)', false);
+    } finally {
+        gh6Overlay(false);
     }
+}
 
-    // Wire select change to hard reset
+// Init override: load list from GitHub, then load selected dash
+async function wsInitWorkspaceManager() {
+    // hook select change like original
     const select = document.getElementById('ws-select');
-    if (select && !select.__wiredGhReset) {
-        select.__wiredGhReset = true;
+    if (select) {
         select.addEventListener('change', (e) => wsSelectWorkspace(e.target.value));
     }
-
-    // Hook import file
+    // hook import
     const importEl = document.getElementById('ws-import-file');
-    if (importEl && !importEl.__wiredGhReset) {
-        importEl.__wiredGhReset = true;
+    if (importEl) {
         importEl.addEventListener('change', async (e) => {
             const f = e.target.files && e.target.files[0];
-            if (f) await wsImportFile(f);
+            if (f) wsImportFile(f);
             e.target.value = '';
         });
     }
 
-    // Disable local autosave tick that writes to local storage; keep existing timer but route to GitHub
-    try { wsStartAutoSave(); } catch(e) {}
+    gh6Overlay(true, 'Loading dashboards list...');
+    let dashboards = [];
+    try {
+        dashboards = await gh6SyncListIntoStore();
+    } catch(e) {
+        console.error(e);
+    }
+
+    // pick dash from URL else first
+    const urlId = gh6GetDashFromUrl();
+    const store = wsLoadStore();
+    const first = dashboards[0] ? dashboards[0].id : (wsList()[0] ? wsList()[0].id : null);
+    wsCurrentId = (urlId && store.workspaces[urlId]) ? urlId : first;
+
+    if (wsCurrentId) {
+        const sel = document.getElementById('ws-select');
+        if (sel) sel.value = wsCurrentId;
+        await wsSelectWorkspace(wsCurrentId, { saveCurrent:false });
+    } else {
+        // none exists: create default
+        await wsCreateWorkspace('Default', null);
+    }
+
+    gh6Overlay(false);
+    wsStartAutoSave();
 }
+
+// Auto-save: keep but it will call wsSaveNow (GitHub)
 
 </script>
 
