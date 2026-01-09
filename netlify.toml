@@ -1,3 +1,51 @@
 [build]
-  publish = "public"
+  publish = "."
   functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/auth/login"
+  to = "/.netlify/functions/auth-login"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/admin"
+  to = "/.netlify/functions/auth-admin"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/me"
+  to = "/.netlify/functions/auth-me"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/logout"
+  to = "/.netlify/functions/auth-logout"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/users"
+  to = "/.netlify/functions/users"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/publish"
+  to = "/.netlify/functions/publish"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/state"
+  to = "/.netlify/functions/state"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/ado"
+  to = "/.netlify/functions/ado"
+  status = 200
+  force = true

@@ -1,5 +1,13 @@
 {
-  "name": "easytrack-dashboard",
+  "name": "trackwise-rbac",
   "private": true,
-  "dependencies": {}
+  "version": "2.0.0",
+  "scripts": {
+    "dev:vercel": "vercel dev",
+    "dev:netlify": "netlify dev"
+  },
+  "devDependencies": {
+    "vercel": "^34.0.0",
+    "netlify-cli": "^17.0.0"
+  }
 }
