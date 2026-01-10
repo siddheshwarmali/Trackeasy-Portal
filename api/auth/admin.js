@@ -1,23 +1,28 @@
-const { json, setCors, readBody, setCookie, signToken } = require('../_util');
+// api/auth/admin.js
+const { setAuthCookie, json, readJsonBody } = require('../_lib/auth');
 
 module.exports = async (req, res) => {
-  setCors(res);
-  if (req.method === 'OPTIONS') return json(res, 204, { ok:true });
-  if (req.method !== 'POST') return json(res, 405, { error:'Method not allowed' });
+  try {
+    if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+    const body = await readJsonBody(req);
+    const user = String(body.username || '').trim();
+    const pass = String(body.password || '').trim();
 
-  const env = process.env;
-  const missing = ['SESSION_SECRET','ADMIN_USER','ADMIN_PASS'].filter(k => !env[k]);
-  if (missing.length) return json(res, 500, { error:'Missing env vars', missing });
+    const expUser = process.env.ADMIN_USER || 'admin';
+    const expPass = process.env.ADMIN_PASS || '';
 
-  const body = await readBody(req);
-  const username = String(body.username||'').trim();
-  const password = String(body.password||'').trim();
+    if (!expPass) {
+      return json(res, 500, { error: 'Admin password not configured (set ADMIN_PASS in Vercel env).' });
+    }
 
-  if (username !== env.ADMIN_USER || password !== env.ADMIN_PASS) {
-    return json(res, 403, { error:'Invalid admin credentials' });
+    if (user !== expUser || pass !== expPass) {
+      return json(res, 403, { error: 'Invalid credentials' });
+    }
+
+    const auth = { role: 'admin', email: 'admin', expiresAt: new Date(Date.now() + 1000*60*60*12).toISOString() };
+    setAuthCookie(res, auth, 60*60*12);
+    return json(res, 200, auth);
+  } catch (e) {
+    return json(res, 500, { error: e.message || String(e) });
   }
-
-  const token = signToken({ email: 'admin', role:'admin' }, env.SESSION_SECRET, 60*60*12);
-  setCookie(res, 'tw_session', token, { maxAge: 60*60*12 });
-  return json(res, 200, { email:'admin', role:'admin' });
 };
