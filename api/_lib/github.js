@@ -37,22 +37,25 @@ function repoInfo() {
   const owner = env('GITHUB_OWNER');
   const repo = env('GITHUB_REPO');
   const branch = env('GITHUB_BRANCH', 'main');
-  const prefix = env('GITHUB_DATA_PREFIX', 'data/dashboards');
+  const dashPrefix = env('GITHUB_DATA_PREFIX', 'data/dashboards');
+  const usersPrefix = env('GITHUB_USERS_PREFIX', 'data/users');
   if (!owner || !repo) throw new Error('Missing env: GITHUB_OWNER or GITHUB_REPO');
-  return { owner, repo, branch, prefix };
+  return { owner, repo, branch, dashPrefix, usersPrefix };
 }
 
-function filePath(dashId) {
-  const { prefix } = repoInfo();
-  const safe = String(dashId || 'default').replace(/[^a-zA-Z0-9._-]/g, '_');
+function safeId(id) {
+  return String(id || '').toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+}
+
+function pathFor(prefix, id) {
+  const safe = safeId(id || 'default');
   return `${prefix}/${safe}.json`;
 }
 
-async function getFile(dashId) {
+async function getJson(prefix, id) {
   const { owner, repo, branch } = repoInfo();
-  const path = filePath(dashId);
+  const path = pathFor(prefix, id);
   try {
-    // IMPORTANT: don't encode slashes in the /contents/{path} segment
     const data = await ghRequest(`/repos/${owner}/${repo}/contents/${encodeURI(path)}?ref=${encodeURIComponent(branch)}`);
     const content = Buffer.from(data.content, 'base64').toString('utf8');
     return { exists: true, sha: data.sha, path, json: JSON.parse(content) };
@@ -62,30 +65,30 @@ async function getFile(dashId) {
   }
 }
 
-async function putFile(dashId, json, message = null) {
-  const { branch } = repoInfo();
-  const { exists, sha, path } = await getFile(dashId);
+async function putJson(prefix, id, obj, message = null) {
+  const { owner, repo, branch } = repoInfo();
+  const { exists, sha, path } = await getJson(prefix, id);
   const body = {
-    message: message || `Update dashboard ${dashId}`,
-    content: Buffer.from(JSON.stringify(json, null, 2)).toString('base64'),
+    message: message || `Update ${id}`,
+    content: Buffer.from(JSON.stringify(obj, null, 2)).toString('base64'),
     branch,
   };
   if (exists && sha) body.sha = sha;
-  return ghRequest(`/repos/${repoInfo().owner}/${repoInfo().repo}/contents/${encodeURI(path)}`,
+  return ghRequest(`/repos/${owner}/${repo}/contents/${encodeURI(path)}`,
     { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
-async function deleteFile(dashId, message = null) {
-  const { branch } = repoInfo();
-  const { exists, sha, path } = await getFile(dashId);
+async function deleteJson(prefix, id, message = null) {
+  const { owner, repo, branch } = repoInfo();
+  const { exists, sha, path } = await getJson(prefix, id);
   if (!exists) return { deleted: false };
-  const body = { message: message || `Delete dashboard ${dashId}`, sha, branch };
-  return ghRequest(`/repos/${repoInfo().owner}/${repoInfo().repo}/contents/${encodeURI(path)}`,
+  const body = { message: message || `Delete ${id}`, sha, branch };
+  return ghRequest(`/repos/${owner}/${repo}/contents/${encodeURI(path)}`,
     { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
-async function listDashboards() {
-  const { owner, repo, branch, prefix } = repoInfo();
+async function listFolder(prefix) {
+  const { owner, repo, branch } = repoInfo();
   let items = [];
   try {
     items = await ghRequest(`/repos/${owner}/${repo}/contents/${encodeURI(prefix)}?ref=${encodeURIComponent(branch)}`);
@@ -94,19 +97,7 @@ async function listDashboards() {
     throw e;
   }
   if (!Array.isArray(items)) return [];
-  const jsonFiles = items.filter(x => x.type === 'file' && String(x.name || '').endsWith('.json'));
-
-  const out = [];
-  for (const f of jsonFiles) {
-    let updatedAt = null;
-    try {
-      const commits = await ghRequest(`/repos/${owner}/${repo}/commits?path=${encodeURIComponent(f.path)}&per_page=1&sha=${encodeURIComponent(branch)}`);
-      updatedAt = commits && commits[0] && commits[0].commit && commits[0].commit.committer && commits[0].commit.committer.date;
-    } catch {}
-    const id = String(f.name).replace(/\.json$/, '');
-    out.push({ id, name: id, updatedAt, createdAt: updatedAt });
-  }
-  return out;
+  return items.filter(x => x.type === 'file' && String(x.name || '').endsWith('.json'));
 }
 
-module.exports = { repoInfo, getFile, putFile, deleteFile, listDashboards };
+module.exports = { repoInfo, safeId, getJson, putJson, deleteJson, listFolder };
