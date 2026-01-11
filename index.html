@@ -73,6 +73,24 @@
   #auth-card { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(520px,92vw); background:#ffffff; border-radius:16px; box-shadow:0 20px 55px rgba(0,0,0,0.35); padding:18px 18px 16px; }
   .auth-tab { padding:8px 12px; border-radius:10px; font-size:13px; cursor:pointer; }
   .auth-tab.active { background:#1d4ed8; color:#fff; }
+
+
+/* Effective permission: read-only even for creators when shared as viewer */
+body.perm-readonly button[data-auth-show],
+body.perm-readonly #ws-modal,
+body.perm-readonly #ws-import-file,
+body.perm-readonly button[onclick^="wsOpenCreateModal"],
+body.perm-readonly button[onclick^="wsRenameCurrent"],
+body.perm-readonly button[onclick^="wsSaveNow"],
+body.perm-readonly button[onclick^="wsExport"],
+body.perm-readonly button[onclick^="wsClear"],
+body.perm-readonly #us-upload-controls,
+body.perm-readonly #bug-upload-controls,
+body.perm-readonly button[onclick^="openAdoModal"],
+body.perm-readonly .no-print button { display:none !important; }
+body.perm-readonly .clickable-cell { pointer-events:none !important; text-decoration:none !important; color:#64748b !important; font-weight:500 !important; }
+body.perm-readonly [contenteditable] { pointer-events:none !important; background:transparent !important; }
+body.perm-readonly .delete-btn { display:none !important; }
 </style>
 
 </head>
@@ -113,7 +131,7 @@
 </div>
 
 
-    <div class="max-w-7xl mx-auto p-6 min-h-screen">
+    <div id="page-main" class="max-w-7xl mx-auto p-6 min-h-screen">
         <!-- Header -->
         <div class="mb-8">
             <h1 class="text-3xl font-bold text-gray-900 mb-2">Executive Dashboard</h1>
@@ -940,7 +958,439 @@
             btn.innerHTML = originalText;
         }
     </script>
+
+
+<!-- GLOBAL HAMBURGER NAV (Build / Run / User Manager) -->
+<div id="global-nav" class="fixed top-4 right-4 z-[99999] no-print">
+  <button id="hamburger-btn" class="w-11 h-11 rounded-xl bg-white shadow-md border border-gray-200 flex items-center justify-center hover:bg-gray-50" title="Menu">
+    <span class="text-xl leading-none">☰</span>
+  </button>
+  <div id="hamburger-menu" class="hidden mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+    <button class="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm" onclick="navGo('build')">🏗️ Build</button>
+    <button class="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm" onclick="navGo('run')">▶️ Run</button>
+    <button id="nav-users-btn" class="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm" onclick="navGo('users')">👥 User Manager</button>
+    <div class="h-px bg-gray-200"></div>
+    <button id="nav-publish-btn" class="w-full text-left px-4 py-3 hover:bg-indigo-50 text-sm text-indigo-700" onclick="openPublishModal()">🚀 Publish</button>
+    <button class="w-full text-left px-4 py-3 hover:bg-red-50 text-sm text-red-700" onclick="authLogout()">⎋ Logout</button>
+  </div>
+</div>
+
+<!-- USER MANAGER PAGE -->
+<div id="page-users" class="hidden max-w-7xl mx-auto p-6 min-h-screen">
+  <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-2xl font-bold text-gray-900">User Manager</h2>
+        <p class="text-sm text-gray-500">Manage users and roles (Admin only). Creators can view list for publishing.</p>
+      </div>
+      <div class="flex gap-2">
+        <button id="btn-add-user" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700" onclick="openUserModal()">+ Add User</button>
+        <button class="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg text-sm font-semibold hover:bg-gray-200" onclick="navGo('build')">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg shadow-md p-4">
+    <div id="users-error" class="hidden mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-2"></div>
+    <div class="overflow-auto custom-scroll">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Email</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Role</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="users-tbody" class="divide-y divide-gray-100"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT USER MODAL -->
+<div id="modal-user" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+  <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md animate-fade-in">
+    <div class="flex items-center justify-between mb-4">
+      <h3 id="user-modal-title" class="text-lg font-bold text-gray-900">Add User</h3>
+      <button onclick="closeModal('modal-user')" class="p-1 rounded-full hover:bg-gray-100">✕</button>
+    </div>
+
+    <input type="hidden" id="user-mode" value="new" />
+
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs font-semibold text-gray-600">Email</label>
+        <input id="user-email" class="mt-1 w-full px-3 py-2 border rounded-lg text-sm" placeholder="name@company.com" />
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-600">Role</label>
+        <select id="user-role" class="mt-1 w-full px-3 py-2 border rounded-lg text-sm">
+          <option value="viewer">Viewer</option>
+          <option value="creator">Creator</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-600">Active</label>
+        <select id="user-active" class="mt-1 w-full px-3 py-2 border rounded-lg text-sm">
+          <option value="true" selected>True</option>
+          <option value="false">False</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="flex justify-between mt-6">
+      <button id="user-delete-btn" class="hidden px-4 py-2 bg-red-50 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-100" onclick="deleteUserFromModal()">Delete</button>
+      <div class="ml-auto flex gap-2">
+        <button class="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg text-sm font-semibold hover:bg-gray-200" onclick="closeModal('modal-user')">Cancel</button>
+        <button class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700" onclick="saveUserFromModal()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PUBLISH MODAL (Creators/Admin) -->
+<div id="modal-publish" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+  <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl animate-fade-in">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-lg font-bold text-gray-900">Publish Dashboard</h3>
+      <button onclick="closeModal('modal-publish')" class="p-1 rounded-full hover:bg-gray-100">✕</button>
+    </div>
+    <p class="text-sm text-gray-500 mb-4">Publish shares this dashboard with selected users. Editors can edit; viewers are read-only.</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="border rounded-lg p-3">
+        <div class="flex items-center justify-between mb-2">
+          <p class="font-semibold text-gray-700 text-sm">Editors</p>
+          <button class="text-xs text-blue-600 hover:underline" onclick="selectAllPublish('editors', true)">Select all</button>
+        </div>
+        <div id="publish-editors" class="max-h-56 overflow-auto custom-scroll space-y-1"></div>
+      </div>
+      <div class="border rounded-lg p-3">
+        <div class="flex items-center justify-between mb-2">
+          <p class="font-semibold text-gray-700 text-sm">Viewers</p>
+          <button class="text-xs text-blue-600 hover:underline" onclick="selectAllPublish('viewers', true)">Select all</button>
+        </div>
+        <div id="publish-viewers" class="max-h-56 overflow-auto custom-scroll space-y-1"></div>
+      </div>
+    </div>
+
+    <div class="mt-4 flex items-center gap-3">
+      <label class="text-sm font-semibold text-gray-700">Published</label>
+      <input id="publish-flag" type="checkbox" class="w-4 h-4" />
+      <span class="text-xs text-gray-500">Turn off to unpublish (access lists are retained).</span>
+    </div>
+
+    <div class="mt-6 flex justify-end gap-2">
+      <button class="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg text-sm font-semibold hover:bg-gray-200" onclick="closeModal('modal-publish')">Cancel</button>
+      <button id="publish-save-btn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700" onclick="savePublish()">Save & Publish</button>
+    </div>
+  </div>
+</div>
+
 </body>
+
+
+<script>
+// =========================
+// NAVIGATION + ROLE/PERMISSION GUARDS (Build/Run/User Manager)
+// =========================
+(function(){
+  function $(id){ return document.getElementById(id); }
+
+  // Hamburger toggle
+  function toggleMenu(){
+    const m = $('hamburger-menu');
+    if (!m) return;
+    m.classList.toggle('hidden');
+  }
+  document.addEventListener('click', (e)=>{
+    const btn = $('hamburger-btn');
+    const menu = $('hamburger-menu');
+    if (!btn || !menu) return;
+    if (btn.contains(e.target)) { toggleMenu(); return; }
+    if (!menu.contains(e.target)) menu.classList.add('hidden');
+  });
+
+  // Routing
+  window.navGo = function(page){
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set('page', page);
+      window.history.pushState({}, '', u.toString());
+    } catch {}
+    applyRoute();
+  }
+  window.addEventListener('popstate', applyRoute);
+
+  function getPage(){
+    try { return new URL(window.location.href).searchParams.get('page') || 'build'; } catch { return 'build'; }
+  }
+
+  function applyRoute(){
+    const page = getPage();
+    const main = $('page-main');
+    const users = $('page-users');
+    if (users) users.classList.toggle('hidden', page !== 'users');
+    if (main) main.classList.toggle('hidden', page === 'users');
+
+    // Keep existing feature: use existing tabs for build/run
+    if (page === 'run') {
+      try { if (typeof switchTab === 'function') switchTab('run'); } catch {}
+    } else {
+      try { if (typeof switchTab === 'function') switchTab('build'); } catch {}
+    }
+
+    // Load users when entering User Manager
+    if (page === 'users') {
+      loadUsers();
+    }
+  }
+
+  // Effective permission model per dashboard:
+  // - owner/editor => write
+  // - viewer => read-only
+  window.__dashPermission = 'owner';
+
+  function setEffectivePerm(perm){
+    window.__dashPermission = perm || 'viewer';
+    document.body.classList.toggle('perm-readonly', perm === 'viewer');
+
+    // Admin-only User Manager button
+    const usersBtn = $('nav-users-btn');
+    const addUserBtn = $('btn-add-user');
+    const isAdmin = window.__auth && window.__auth.role === 'admin';
+    if (usersBtn) usersBtn.style.display = isAdmin ? '' : 'none';
+    if (addUserBtn) addUserBtn.style.display = isAdmin ? '' : 'none';
+
+    // Creator cannot delete dashboards (button exists in Build UI)
+    const isCreator = window.__auth && window.__auth.role === 'creator';
+    const delBtn = document.querySelector('button[onclick^="wsDeleteCurrent"], button[onclick="wsDeleteCurrent()"]');
+    if (delBtn && isCreator) delBtn.style.display = 'none';
+
+    // Publish visible for creator/admin and only when can write
+    const pubBtn = $('nav-publish-btn');
+    if (pubBtn) {
+      const canPublish = window.__auth && (window.__auth.role === 'admin' || window.__auth.role === 'creator');
+      pubBtn.style.display = canPublish ? '' : 'none';
+      pubBtn.disabled = (perm === 'viewer');
+      pubBtn.classList.toggle('opacity-50', perm === 'viewer');
+      pubBtn.classList.toggle('cursor-not-allowed', perm === 'viewer');
+    }
+  }
+
+  // Hook into wsApplyState to extract dashboard meta permission info
+  const __orig_wsApplyState = (typeof wsApplyState === 'function') ? wsApplyState : null;
+  if (__orig_wsApplyState) {
+    window.wsApplyState = function(state, opts){
+      const r = __orig_wsApplyState(state, opts);
+      try {
+        const meta = state && state.__meta ? state.__meta : {};
+        const me = window.__auth && (window.__auth.email || window.__auth.user || window.__auth.username);
+        const owner = meta.ownerId;
+        const editors = Array.isArray(meta.editors) ? meta.editors : [];
+        const viewers = Array.isArray(meta.viewers) ? meta.viewers : [];
+        let perm = 'viewer';
+        if (window.__auth && window.__auth.role === 'admin') perm = 'owner';
+        else if (me && owner && String(me).toLowerCase() === String(owner).toLowerCase()) perm = 'owner';
+        else if (me && editors.map(x=>String(x).toLowerCase()).includes(String(me).toLowerCase())) perm = 'editor';
+        else if (me && viewers.map(x=>String(x).toLowerCase()).includes(String(me).toLowerCase())) perm = 'viewer';
+        setEffectivePerm(perm === 'editor' ? 'owner' : perm); // editor treated as write
+      } catch {
+        setEffectivePerm('viewer');
+      }
+      return r;
+    }
+  }
+
+  // Init route on load
+  window.addEventListener('DOMContentLoaded', applyRoute);
+
+  // =========================
+  // USERS API (GitHub DB via Vercel)
+  // =========================
+  async function apiJson(path, options={}){
+    const r = await fetch(path, Object.assign({ headers:{'Content-Type':'application/json'} }, options));
+    const raw = await r.text();
+    let data = {};
+    try { data = JSON.parse(raw || '{}'); } catch { data = { error: raw }; }
+    if (!r.ok) throw new Error(data.error || data.message || `HTTP ${r.status}`);
+    return data;
+  }
+
+  window.loadUsers = async function(){
+    const err = $('users-error');
+    const tbody = $('users-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-400">Loading…</td></tr>';
+    if (err) err.classList.add('hidden');
+    try {
+      const data = await apiJson('/api/users');
+      const users = Array.isArray(data.users) ? data.users : [];
+      tbody.innerHTML = users.map(u=>{
+        const canAdmin = window.__auth && window.__auth.role === 'admin';
+        const actions = canAdmin ? `
+          <button class="text-xs px-2 py-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100" onclick="openUserModal('${u.email}','${u.role}', ${u.active!==false})">Edit</button>
+        ` : '<span class="text-xs text-gray-400">View</span>';
+        return `
+          <tr>
+            <td class="px-4 py-3 text-sm text-gray-800">${u.email}</td>
+            <td class="px-4 py-3 text-sm"><span class="px-2 py-1 rounded bg-gray-100">${u.role}</span></td>
+            <td class="px-4 py-3 text-sm">${u.active===false ? '<span class="text-red-600">Inactive</span>' : '<span class="text-green-600">Active</span>'}</td>
+            <td class="px-4 py-3 text-right">${actions}</td>
+          </tr>
+        `;
+      }).join('') || '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-400">No users</td></tr>';
+    } catch(e){
+      if (err) { err.textContent = e.message || String(e); err.classList.remove('hidden'); }
+      tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-400">Failed</td></tr>';
+    }
+  }
+
+  window.openUserModal = function(email='', role='viewer', active=true){
+    const canAdmin = window.__auth && window.__auth.role === 'admin';
+    if (!canAdmin) return alert('Admin only');
+    $('user-modal-title').textContent = email ? 'Edit User' : 'Add User';
+    $('user-mode').value = email ? 'edit' : 'new';
+    $('user-email').value = email || '';
+    $('user-email').disabled = !!email;
+    $('user-role').value = role || 'viewer';
+    $('user-active').value = String(active !== false);
+    $('user-delete-btn').classList.toggle('hidden', !email);
+    $('modal-user').classList.add('open');
+  }
+
+  window.saveUserFromModal = async function(){
+    try {
+      const email = ($('user-email').value||'').trim().toLowerCase();
+      const role = $('user-role').value;
+      const active = $('user-active').value === 'true';
+      if (!email) return alert('Email required');
+      await apiJson('/api/users', { method:'POST', body: JSON.stringify({ email, role, active }) });
+      closeModal('modal-user');
+      await loadUsers();
+      alert('Saved');
+    } catch(e){
+      alert(e.message||String(e));
+    }
+  }
+
+  window.deleteUserFromModal = async function(){
+    try {
+      const email = ($('user-email').value||'').trim().toLowerCase();
+      if (!email) return;
+      if (!confirm('Delete user '+email+'?')) return;
+      await apiJson('/api/users', { method:'DELETE', body: JSON.stringify({ email }) });
+      closeModal('modal-user');
+      await loadUsers();
+      alert('Deleted');
+    } catch(e){
+      alert(e.message||String(e));
+    }
+  }
+
+  // =========================
+  // PUBLISH (Creators/Admin)
+  // =========================
+  let __usersCache = [];
+
+  function renderUserChecklist(targetId, selected){
+    const el = $(targetId);
+    if (!el) return;
+    const set = new Set((selected||[]).map(x=>String(x).toLowerCase()));
+    el.innerHTML = __usersCache
+      .filter(u=>u.active!==false)
+      .map(u=>{
+        const checked = set.has(String(u.email).toLowerCase()) ? 'checked' : '';
+        return `<label class="flex items-center gap-2 text-sm px-2 py-1 rounded hover:bg-gray-50">
+          <input type="checkbox" data-email="${u.email}" ${checked} class="w-4 h-4" />
+          <span class="text-gray-700">${u.email}</span>
+          <span class="ml-auto text-[11px] text-gray-400">${u.role}</span>
+        </label>`;
+      }).join('') || '<div class="text-sm text-gray-400">No users</div>';
+  }
+
+  function readChecked(targetId){
+    const el = $(targetId);
+    if (!el) return [];
+    const boxes = el.querySelectorAll('input[type=checkbox][data-email]');
+    const out = [];
+    boxes.forEach(b=>{ if (b.checked) out.push(b.getAttribute('data-email')); });
+    return out;
+  }
+
+  window.selectAllPublish = function(which, on){
+    const id = which === 'editors' ? 'publish-editors' : 'publish-viewers';
+    const el = $(id);
+    if (!el) return;
+    el.querySelectorAll('input[type=checkbox]').forEach(b=>b.checked = !!on);
+  }
+
+  window.openPublishModal = async function(){
+    const can = window.__auth && (window.__auth.role === 'admin' || window.__auth.role === 'creator');
+    if (!can) return alert('Not allowed');
+    if (document.body.classList.contains('perm-readonly')) return alert('You have viewer access to this dashboard');
+    if (!window.wsCurrentId) return alert('Select a workspace/dashboard first');
+
+    try {
+      const data = await apiJson('/api/users');
+      __usersCache = Array.isArray(data.users) ? data.users : [];
+
+      const st = (typeof wsGetState === 'function') ? wsGetState() : {};
+      const meta = st.__meta || {};
+      $('publish-flag').checked = !!meta.published;
+      renderUserChecklist('publish-editors', meta.editors || []);
+      renderUserChecklist('publish-viewers', meta.viewers || []);
+
+      $('modal-publish').classList.add('open');
+    } catch(e){
+      alert(e.message||String(e));
+    }
+  }
+
+  window.savePublish = async function(){
+    try {
+      if (!window.wsCurrentId) return;
+      const st = (typeof wsGetState === 'function') ? wsGetState() : {};
+      st.__meta = st.__meta || {};
+      st.__meta.published = $('publish-flag').checked;
+      st.__meta.editors = readChecked('publish-editors');
+      st.__meta.viewers = readChecked('publish-viewers');
+
+      // Ensure ownerId exists
+      if (!st.__meta.ownerId && window.__auth && window.__auth.email) st.__meta.ownerId = window.__auth.email;
+
+      // Save via GitHub sync layer (gh6Save exists in file)
+      if (typeof gh6Save === 'function') {
+        await gh6Save(window.wsCurrentId, st);
+      } else if (typeof wsSaveNow === 'function') {
+        await wsSaveNow();
+      }
+
+      closeModal('modal-publish');
+      alert('Publish settings saved');
+    } catch(e){
+      alert(e.message||String(e));
+    }
+  }
+
+  // When auth is ready, apply role UI and route
+  const __orig_applyRoleUI = (typeof applyRoleUI === 'function') ? applyRoleUI : null;
+  if (__orig_applyRoleUI) {
+    window.applyRoleUI = function(){
+      __orig_applyRoleUI();
+      // Role-based global UI
+      const isAdmin = window.__auth && window.__auth.role === 'admin';
+      const isCreator = window.__auth && window.__auth.role === 'creator';
+      $('nav-users-btn') && ($('nav-users-btn').style.display = isAdmin ? '' : 'none');
+      $('nav-publish-btn') && ($('nav-publish-btn').style.display = (isAdmin || isCreator) ? '' : 'none');
+    }
+  }
+
+})();
+</script>
+
 </html>
 </template>
 
