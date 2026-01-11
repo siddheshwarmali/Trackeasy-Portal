@@ -5,3 +5,4 @@ module.exports = async (req, res) => {
   if (!auth) return json(res, 200, { authenticated: false });
   return json(res, 200, { authenticated: true, ...auth });
 };
+
