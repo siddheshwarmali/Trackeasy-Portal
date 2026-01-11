@@ -48,11 +48,11 @@ module.exports = async (req, res) => {
               name: meta.name || id,
               ownerId: meta.ownerId || null,
               published: !!meta.published,
-              permission: perm === 'editor' ? 'owner' : perm, // editor treated as write
+              permission: perm,
               updatedAt: meta.updatedAt || meta.createdAt || null,
               createdAt: meta.createdAt || null,
             });
-          } catch { /* ignore */ }
+          } catch {}
         }
         dashboards.sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')));
         return ok(res, { dashboards });
@@ -81,22 +81,17 @@ module.exports = async (req, res) => {
       const now = new Date().toISOString();
 
       state.__meta = state.__meta || {};
-      // Preserve/assign owner
       if (existing.exists && existing.json && existing.json.__meta && existing.json.__meta.ownerId) {
         state.__meta.ownerId = existing.json.__meta.ownerId;
       } else {
         state.__meta.ownerId = auth.email;
       }
 
-      // ACL arrays
       state.__meta.editors = Array.isArray(state.__meta.editors) ? state.__meta.editors : (existing.json?.__meta?.editors || []);
       state.__meta.viewers = Array.isArray(state.__meta.viewers) ? state.__meta.viewers : (existing.json?.__meta?.viewers || []);
       state.__meta.published = !!state.__meta.published;
-
-      // Name
       if (!state.__meta.name) state.__meta.name = dash;
 
-      // Permission check for update
       const perm = computePermission(auth, state.__meta);
       const canWrite = (auth.role === 'admin') || perm === 'owner' || perm === 'editor';
       if (!canWrite) return bad(res, 403, 'No write permission');
