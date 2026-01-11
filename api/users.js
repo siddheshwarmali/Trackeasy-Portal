@@ -1,6 +1,7 @@
 // api/users.js
 const { getAuth, hasRole, json, readJsonBody } = require('./_lib/auth');
 const { repoInfo, getJson, putJson, deleteJson, listFolder, safeId } = require('./_lib/github');
+const { hashPassword } = require('./_lib/password');
 
 function ok(res, data){ return json(res, 200, data); }
 function bad(res, status, message, details){ return json(res, status, { error: message, details }); }
@@ -13,10 +14,10 @@ async function listUsers(){
     const id = String(f.name).replace(/\.json$/, '');
     try {
       const u = await getJson(usersPrefix, id);
-      if (u.exists && u.json && u.json.email) out.push(u.json);
+      if (u.exists && u.json && u.json.userId) out.push(u.json);
     } catch {}
   }
-  out.sort((a,b)=>String(a.email).localeCompare(String(b.email)));
+  out.sort((a,b)=>String(a.userId).localeCompare(String(b.userId)));
   return out;
 }
 
@@ -26,40 +27,55 @@ module.exports = async (req, res) => {
     if (!auth) return bad(res, 401, 'Login required');
 
     const method = req.method || 'GET';
-    const { usersPrefix } = repoInfo();
 
     if (method === 'GET'){
+      // creators/admin can read user list for publish selector
       if (!hasRole(auth, ['admin','creator'])) return bad(res, 403, 'Not allowed');
       const users = await listUsers();
-      return ok(res, { users: users.map(u => ({ email: u.email, role: u.role || 'viewer', active: u.active !== false })) });
+      return ok(res, { users: users.map(u => ({ userId: u.userId, role: u.role || 'viewer', active: u.active !== false })) });
     }
 
     if (method === 'POST'){
       if (!hasRole(auth, ['admin'])) return bad(res, 403, 'Admin only');
       const body = await readJsonBody(req);
-      const email = String(body.email || '').trim().toLowerCase();
+      const userId = String(body.userId || '').trim();
       const role = String(body.role || 'viewer').toLowerCase();
       const active = body.active !== false;
-      if (!email) return bad(res, 400, 'Email required');
+      const password = String(body.password || '').trim();
+      if (!userId) return bad(res, 400, 'User ID required');
       if (!['viewer','creator','admin'].includes(role)) return bad(res, 400, 'Invalid role');
 
-      const id = safeId(email);
-      const record = { email, role, active, updatedAt: new Date().toISOString() };
-      await putJson(usersPrefix, id, record, `Upsert user ${email}`);
+      const { usersPrefix } = repoInfo();
+      const id = safeId(userId);
+      const existing = await getJson(usersPrefix, id);
+
+      const now = new Date().toISOString();
+      const record = existing.exists && existing.json ? existing.json : { createdAt: now };
+      record.userId = userId;
+      record.role = role;
+      record.active = active;
+      record.updatedAt = now;
+
+      if (!existing.exists && !password) return bad(res, 400, 'Password required for new user');
+      if (password) record.password = hashPassword(password);
+
+      await putJson(usersPrefix, id, record, `Upsert user ${userId}`);
       return ok(res, { ok:true });
     }
 
     if (method === 'DELETE'){
       if (!hasRole(auth, ['admin'])) return bad(res, 403, 'Admin only');
       const body = await readJsonBody(req);
-      const email = String(body.email || '').trim().toLowerCase();
-      if (!email) return bad(res, 400, 'Email required');
-      const id = safeId(email);
-      await deleteJson(usersPrefix, id, `Delete user ${email}`);
+      const userId = String(body.userId || '').trim();
+      if (!userId) return bad(res, 400, 'User ID required');
+      const { usersPrefix } = repoInfo();
+      const id = safeId(userId);
+      await deleteJson(usersPrefix, id, `Delete user ${userId}`);
       return ok(res, { ok:true });
     }
 
     return bad(res, 405, 'Method not allowed');
+
   } catch (e){
     return json(res, 500, { error: e.message || String(e), details: e.data || null });
   }
