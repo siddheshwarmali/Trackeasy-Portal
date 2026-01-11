@@ -4,13 +4,12 @@ const { repoInfo, getJson, putJson, deleteJson, listFolder } = require('./_lib/g
 
 function ok(res, data){ return json(res, 200, data); }
 function bad(res, status, message, details){ return json(res, status, { error: message, details }); }
-
-function lower(x){ return String(x || '').trim().toLowerCase(); }
+function lower(x){ return String(x||'').trim().toLowerCase(); }
 
 function computePermission(auth, meta){
   if (!auth) return 'none';
   if (auth.role === 'admin') return 'owner';
-  const me = lower(auth.email);
+  const me = lower(auth.userId);
   const owner = lower(meta.ownerId);
   const editors = Array.isArray(meta.editors) ? meta.editors.map(lower) : [];
   const viewers = Array.isArray(meta.viewers) ? meta.viewers.map(lower) : [];
@@ -43,15 +42,7 @@ module.exports = async (req, res) => {
             const meta = st.json.__meta || {};
             const perm = computePermission(auth, meta);
             if (auth.role !== 'admin' && perm === 'none') continue;
-            dashboards.push({
-              id,
-              name: meta.name || id,
-              ownerId: meta.ownerId || null,
-              published: !!meta.published,
-              permission: perm,
-              updatedAt: meta.updatedAt || meta.createdAt || null,
-              createdAt: meta.createdAt || null,
-            });
+            dashboards.push({ id, name: meta.name || id, ownerId: meta.ownerId || null, published: !!meta.published, permission: perm, updatedAt: meta.updatedAt || meta.createdAt || null, createdAt: meta.createdAt || null });
           } catch {}
         }
         dashboards.sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')));
@@ -61,31 +52,24 @@ module.exports = async (req, res) => {
       if (!dash) return bad(res, 400, 'Missing query param: dash');
       const f = await getJson(dashPrefix, dash);
       if (!f.exists) return ok(res, { id: dash, state: null, exists: false });
-
       const meta = (f.json && f.json.__meta) ? f.json.__meta : {};
       const perm = computePermission(auth, meta);
       if (auth.role !== 'admin' && perm === 'none') return bad(res, 403, 'No access');
-
       return ok(res, { id: dash, state: f.json, exists: true, permission: perm });
     }
 
     if (method === 'POST'){
       if (!dash) return bad(res, 400, 'Missing query param: dash');
       if (!hasRole(auth, ['admin','creator'])) return bad(res, 403, 'Not allowed');
-
       const body = await readJsonBody(req);
       const state = body && body.state;
       if (!state || typeof state !== 'object') return bad(res, 400, 'Missing body.state');
 
       const existing = await getJson(dashPrefix, dash);
       const now = new Date().toISOString();
-
       state.__meta = state.__meta || {};
-      if (existing.exists && existing.json && existing.json.__meta && existing.json.__meta.ownerId) {
-        state.__meta.ownerId = existing.json.__meta.ownerId;
-      } else {
-        state.__meta.ownerId = auth.email;
-      }
+      if (existing.exists && existing.json && existing.json.__meta && existing.json.__meta.ownerId) state.__meta.ownerId = existing.json.__meta.ownerId;
+      else state.__meta.ownerId = auth.userId;
 
       state.__meta.editors = Array.isArray(state.__meta.editors) ? state.__meta.editors : (existing.json?.__meta?.editors || []);
       state.__meta.viewers = Array.isArray(state.__meta.viewers) ? state.__meta.viewers : (existing.json?.__meta?.viewers || []);
@@ -105,9 +89,25 @@ module.exports = async (req, res) => {
 
     if (method === 'DELETE'){
       if (!dash) return bad(res, 400, 'Missing query param: dash');
-      if (!hasRole(auth, ['admin'])) return bad(res, 403, 'Admin only');
-      await deleteJson(dashPrefix, dash, `Delete dashboard ${dash}`);
-      return ok(res, { ok:true, id: dash });
+
+      if (auth.role === 'admin') {
+        await deleteJson(dashPrefix, dash, `Delete dashboard ${dash}`);
+        return ok(res, { ok:true, id: dash });
+      }
+
+      if (auth.role === 'creator') {
+        const existing = await getJson(dashPrefix, dash);
+        if (!existing.exists || !existing.json) return ok(res, { ok:true, id: dash });
+        const meta = existing.json.__meta || {};
+        const isOwner = lower(meta.ownerId) === lower(auth.userId);
+        const isPublished = !!meta.published;
+        if (!isOwner) return bad(res, 403, 'Only owner can delete');
+        if (isPublished) return bad(res, 403, 'Creators cannot delete after publishing');
+        await deleteJson(dashPrefix, dash, `Delete dashboard ${dash}`);
+        return ok(res, { ok:true, id: dash });
+      }
+
+      return bad(res, 403, 'Admin only');
     }
 
     return bad(res, 405, 'Method not allowed');
