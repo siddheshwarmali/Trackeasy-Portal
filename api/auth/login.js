@@ -1,12 +1,7 @@
 // api/auth/login.js
-// Email login backed by GitHub DB users. Multiple admins supported via users role.
 const { setAuthCookie, json, readJsonBody } = require('../_lib/auth');
 const { repoInfo, getJson, putJson, listFolder, safeId } = require('../_lib/github');
-
-function parseList(v){
-  return String(v || '').split(/[,
-\s]+/).map(s=>s.trim().toLowerCase()).filter(Boolean);
-}
+const { hashPassword, verifyPassword } = require('../_lib/password');
 
 async function usersEmpty(){
   const { usersPrefix } = repoInfo();
@@ -18,36 +13,41 @@ module.exports = async (req, res) => {
   try {
     if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
     const body = await readJsonBody(req);
-    const email = String(body.email || '').trim().toLowerCase();
-    if (!email) return json(res, 400, { error: 'Email is required' });
+    const userId = String(body.userId || '').trim();
+    const password = String(body.password || '').trim();
+    if (!userId || !password) return json(res, 400, { error: 'User ID and Password are required' });
 
     const { usersPrefix } = repoInfo();
-    const id = safeId(email);
+    const id = safeId(userId);
     const record = await getJson(usersPrefix, id);
 
-    // Bootstrap: allow initial admins via env BOOTSTRAP_ADMINS when users DB is empty
-    const bootstrapAdmins = parseList(process.env.BOOTSTRAP_ADMINS);
+    // Bootstrap first admin only when users DB is empty
+    const bootUser = String(process.env.BOOTSTRAP_ADMIN_USER || '').trim();
+    const bootPass = String(process.env.BOOTSTRAP_ADMIN_PASS || '').trim();
     if (!record.exists) {
       const empty = await usersEmpty();
-      if (empty && bootstrapAdmins.includes(email)) {
-        const u = { email, role: 'admin', active: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-        await putJson(usersPrefix, id, u, `Bootstrap admin ${email}`);
-        const auth = { role:'admin', email, expiresAt: new Date(Date.now()+1000*60*60*24*7).toISOString() };
-        setAuthCookie(res, auth);
+      if (empty && bootUser && bootPass && userId === bootUser && password === bootPass) {
+        const now = new Date().toISOString();
+        const pw = hashPassword(password);
+        const u = { userId, role: 'admin', active: true, password: pw, createdAt: now, updatedAt: now };
+        await putJson(usersPrefix, id, u, `Bootstrap admin ${userId}`);
+        const auth = { role:'admin', userId, expiresAt: new Date(Date.now()+1000*60*60*12).toISOString() };
+        setAuthCookie(res, auth, 60*60*12);
         return json(res, 200, auth);
       }
-      return json(res, 403, { error: 'User not found. Ask admin to add you.' });
+      return json(res, 403, { error: 'User not found. Ask admin to create your account.' });
     }
 
     const u = record.json || {};
     if (u.active === false) return json(res, 403, { error: 'User inactive' });
-    const role = String(u.role || 'viewer').toLowerCase();
+    if (!verifyPassword(password, u.password)) return json(res, 403, { error: 'Invalid credentials' });
 
-    const auth = { role, email, expiresAt: new Date(Date.now()+1000*60*60*24*7).toISOString() };
+    const role = String(u.role || 'viewer').toLowerCase();
+    const auth = { role, userId, expiresAt: new Date(Date.now()+1000*60*60*24*7).toISOString() };
     setAuthCookie(res, auth);
     return json(res, 200, auth);
 
-  } catch (e){
+  } catch (e) {
     return json(res, 500, { error: e.message || String(e), details: e.data || null });
   }
 };
