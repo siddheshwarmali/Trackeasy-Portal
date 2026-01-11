@@ -14,7 +14,7 @@ async function listUsers(){
     try {
       const u = await getJson(usersPrefix, id);
       if (u.exists && u.json && u.json.email) out.push(u.json);
-    } catch { /* ignore single file */ }
+    } catch {}
   }
   out.sort((a,b)=>String(a.email).localeCompare(String(b.email)));
   return out;
@@ -29,10 +29,8 @@ module.exports = async (req, res) => {
     const { usersPrefix } = repoInfo();
 
     if (method === 'GET'){
-      // Creators can read list for publish selector; Admin can manage.
       if (!hasRole(auth, ['admin','creator'])) return bad(res, 403, 'Not allowed');
       const users = await listUsers();
-      // Never expose internal fields; keep it simple.
       return ok(res, { users: users.map(u => ({ email: u.email, role: u.role || 'viewer', active: u.active !== false })) });
     }
 
@@ -62,7 +60,6 @@ module.exports = async (req, res) => {
     }
 
     return bad(res, 405, 'Method not allowed');
-
   } catch (e){
     return json(res, 500, { error: e.message || String(e), details: e.data || null });
   }
