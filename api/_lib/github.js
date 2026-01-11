@@ -2,7 +2,7 @@
 const { request } = require('./http');
 const GH_API = 'https://api.github.com';
 
-function env(name, fallback = undefined) {
+function env(name, fallback) {
   const v = process.env[name];
   return (v === undefined || v === '') ? fallback : v;
 }
@@ -14,22 +14,16 @@ function ghHeaders() {
     'Accept': 'application/vnd.github+json',
     'Authorization': `Bearer ${token}`,
     'X-GitHub-Api-Version': '2022-11-28',
-    'User-Agent': 'exec-dashboard-vercel',
+    'User-Agent': 'trackwisy-dashboard'
   };
 }
 
 async function ghRequest(path, opts = {}) {
   const url = `${GH_API}${path}`;
-  const r = await request(url, {
-    method: opts.method || 'GET',
-    headers: { ...ghHeaders(), ...(opts.headers || {}) },
-    body: opts.body || null,
-  });
-
+  const r = await request(url, { method: opts.method || 'GET', headers: { ...ghHeaders(), ...(opts.headers||{}) }, body: opts.body || null });
   const raw = r.text || '';
   let data = null;
   try { data = raw ? JSON.parse(raw) : null; } catch { data = raw; }
-
   if (!r.ok) {
     const msg = (data && data.message) ? data.message : raw;
     const err = new Error(`GitHub API ${r.status}: ${msg}`);
@@ -53,10 +47,8 @@ function repoInfo() {
 function safeId(id) {
   return String(id || '').toLowerCase().replace(/[^a-z0-9._-]/g, '_');
 }
-
 function pathFor(prefix, id) {
-  const safe = safeId(id || 'default');
-  return `${prefix}/${safe}.json`;
+  return `${prefix}/${safeId(id || 'default')}.json`;
 }
 
 async function getJson(prefix, id) {
@@ -72,26 +64,20 @@ async function getJson(prefix, id) {
   }
 }
 
-async function putJson(prefix, id, obj, message = null) {
+async function putJson(prefix, id, obj, message) {
   const { owner, repo, branch } = repoInfo();
   const { exists, sha, path } = await getJson(prefix, id);
-  const body = {
-    message: message || `Update ${id}`,
-    content: Buffer.from(JSON.stringify(obj, null, 2)).toString('base64'),
-    branch,
-  };
+  const body = { message: message || `Update ${id}`, content: Buffer.from(JSON.stringify(obj, null, 2)).toString('base64'), branch };
   if (exists && sha) body.sha = sha;
-  return ghRequest(`/repos/${owner}/${repo}/contents/${encodeURI(path)}`,
-    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return ghRequest(`/repos/${owner}/${repo}/contents/${encodeURI(path)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
-async function deleteJson(prefix, id, message = null) {
+async function deleteJson(prefix, id, message) {
   const { owner, repo, branch } = repoInfo();
   const { exists, sha, path } = await getJson(prefix, id);
   if (!exists) return { deleted: false };
   const body = { message: message || `Delete ${id}`, sha, branch };
-  return ghRequest(`/repos/${owner}/${repo}/contents/${encodeURI(path)}`,
-    { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return ghRequest(`/repos/${owner}/${repo}/contents/${encodeURI(path)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
 async function listFolder(prefix) {
@@ -104,7 +90,7 @@ async function listFolder(prefix) {
     throw e;
   }
   if (!Array.isArray(items)) return [];
-  return items.filter(x => x.type === 'file' && String(x.name || '').endsWith('.json'));
+  return items.filter(x => x.type === 'file' && String(x.name||'').endsWith('.json'));
 }
 
 module.exports = { repoInfo, safeId, getJson, putJson, deleteJson, listFolder };

@@ -10,14 +10,8 @@ function parseCookies(cookieHeader = '') {
 }
 
 function b64jsonDecode(s) {
-  try {
-    const raw = Buffer.from(String(s || ''), 'base64').toString('utf8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(Buffer.from(String(s||''), 'base64').toString('utf8')); } catch { return null; }
 }
-
 function b64jsonEncode(obj) {
   return Buffer.from(JSON.stringify(obj)).toString('base64');
 }
@@ -26,7 +20,7 @@ function getAuth(req) {
   const cookies = parseCookies(req.headers.cookie || '');
   const tok = cookies.dash_auth;
   const auth = b64jsonDecode(tok);
-  if (!auth || !auth.role) return null;
+  if (!auth || !auth.role || !auth.userId) return null;
   if (auth.expiresAt) {
     const t = Date.parse(auth.expiresAt);
     if (!isNaN(t) && Date.now() > t) return null;
@@ -35,8 +29,7 @@ function getAuth(req) {
 }
 
 function hasRole(auth, roles) {
-  if (!auth || !auth.role) return false;
-  return roles.includes(auth.role);
+  return !!(auth && auth.role && roles.includes(auth.role));
 }
 
 function setAuthCookie(res, auth, maxAgeSeconds = 60 * 60 * 24 * 7) {
