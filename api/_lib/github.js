@@ -1,4 +1,5 @@
 // api/_lib/github.js
+const { request } = require('./http');
 const GH_API = 'https://api.github.com';
 
 function env(name, fallback = undefined) {
@@ -19,10 +20,16 @@ function ghHeaders() {
 
 async function ghRequest(path, opts = {}) {
   const url = `${GH_API}${path}`;
-  const r = await fetch(url, { ...opts, headers: { ...ghHeaders(), ...(opts.headers || {}) } });
-  const raw = await r.text();
+  const r = await request(url, {
+    method: opts.method || 'GET',
+    headers: { ...ghHeaders(), ...(opts.headers || {}) },
+    body: opts.body || null,
+  });
+
+  const raw = r.text || '';
   let data = null;
   try { data = raw ? JSON.parse(raw) : null; } catch { data = raw; }
+
   if (!r.ok) {
     const msg = (data && data.message) ? data.message : raw;
     const err = new Error(`GitHub API ${r.status}: ${msg}`);
