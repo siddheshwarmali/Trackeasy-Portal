@@ -27,7 +27,6 @@ function getAuth(req) {
   const tok = cookies.dash_auth;
   const auth = b64jsonDecode(tok);
   if (!auth || !auth.role) return null;
-  // Optional expiry
   if (auth.expiresAt) {
     const t = Date.parse(auth.expiresAt);
     if (!isNaN(t) && Date.now() > t) return null;
@@ -48,7 +47,6 @@ function setAuthCookie(res, auth, maxAgeSeconds = 60 * 60 * 24 * 7) {
     `HttpOnly`,
     `SameSite=Lax`,
     `Max-Age=${maxAgeSeconds}`,
-    // Secure only on https; Vercel is https
     `Secure`,
   ].join('; ');
   res.setHeader('Set-Cookie', cookie);
@@ -77,12 +75,4 @@ function readJsonBody(req) {
   });
 }
 
-module.exports = {
-  parseCookies,
-  getAuth,
-  hasRole,
-  setAuthCookie,
-  clearAuthCookie,
-  json,
-  readJsonBody,
-};
+module.exports = { parseCookies, getAuth, hasRole, setAuthCookie, clearAuthCookie, json, readJsonBody };
