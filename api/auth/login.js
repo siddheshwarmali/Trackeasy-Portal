@@ -3,6 +3,7 @@ const { setAuthCookie, json, readJsonBody } = require('../_lib/auth');
 const { repoInfo, getJson, putJson, listFolder, safeId } = require('../_lib/github');
 const { hashPassword, verifyPassword } = require('../_lib/password');
 
+
 async function usersEmpty(){
   const { usersPrefix } = repoInfo();
   const files = await listFolder(usersPrefix);
