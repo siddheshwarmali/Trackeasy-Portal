@@ -5,6 +5,6 @@
   "version": "1.0.0",
   "description": "Executive Dashboard with GitHub DB + Vercel Functions",
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   }
 }
