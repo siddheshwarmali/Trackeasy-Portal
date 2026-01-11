@@ -64,7 +64,6 @@ function json(res, status, data) {
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
-    if (req.body && typeof req.body === 'object') return resolve(req.body);
     let buf = '';
     req.on('data', c => (buf += c));
     req.on('end', () => {
