@@ -1,67 +1,69 @@
-const { json, setCors, readBody, parseCookies, verifyToken } = require('./_util');
-const { getFile, putFile, fromBase64 } = require('./_github');
+// api/users.js
+const { getAuth, hasRole, json, readJsonBody } = require('./_lib/auth');
+const { repoInfo, getJson, putJson, deleteJson, listFolder, safeId } = require('./_lib/github');
 
-const USERS_PATH = 'data/users.json';
+function ok(res, data){ return json(res, 200, data); }
+function bad(res, status, message, details){ return json(res, status, { error: message, details }); }
 
-async function requireAdmin(req) {
-  const secret = process.env.SESSION_SECRET || '';
-  const cookies = parseCookies(req);
-  const payload = verifyToken(cookies.tw_session, secret);
-  if (!payload || payload.role !== 'admin') return null;
-  return payload;
-}
-
-async function loadUsers(env) {
-  const file = await getFile({ token: env.GITHUB_TOKEN, owner: env.GITHUB_OWNER, repo: env.GITHUB_REPO, path: USERS_PATH, branch: env.GITHUB_BRANCH||'main' });
-  if (file.error) return { error: file.error };
-  if (!file.exists) return { users: [], sha: null };
-  try { return { users: JSON.parse(fromBase64(file.contentB64)), sha: file.sha }; }
-  catch { return { users: [], sha: file.sha }; }
+async function listUsers(){
+  const { usersPrefix } = repoInfo();
+  const files = await listFolder(usersPrefix);
+  const out = [];
+  for (const f of files){
+    const id = String(f.name).replace(/\.json$/, '');
+    try {
+      const u = await getJson(usersPrefix, id);
+      if (u.exists && u.json && u.json.email) out.push(u.json);
+    } catch { /* ignore single file */ }
+  }
+  out.sort((a,b)=>String(a.email).localeCompare(String(b.email)));
+  return out;
 }
 
 module.exports = async (req, res) => {
-  setCors(res);
-  if (req.method === 'OPTIONS') return json(res, 204, { ok:true });
+  try {
+    const auth = getAuth(req);
+    if (!auth) return bad(res, 401, 'Login required');
 
-  const env = process.env;
-  const missing = ['GITHUB_TOKEN','GITHUB_OWNER','GITHUB_REPO','SESSION_SECRET'].filter(k => !env[k]);
-  if (missing.length) return json(res, 500, { error:'Missing env vars', missing });
+    const method = req.method || 'GET';
+    const { usersPrefix } = repoInfo();
 
-  const admin = await requireAdmin(req);
-  if (!admin) return json(res, 403, { error:'Admin only' });
+    if (method === 'GET'){
+      // Creators can read list for publish selector; Admin can manage.
+      if (!hasRole(auth, ['admin','creator'])) return bad(res, 403, 'Not allowed');
+      const users = await listUsers();
+      // Never expose internal fields; keep it simple.
+      return ok(res, { users: users.map(u => ({ email: u.email, role: u.role || 'viewer', active: u.active !== false })) });
+    }
 
-  const { users, sha, error } = await loadUsers(env);
-  if (error) return json(res, 502, { error:'GitHub read users failed', details: error });
+    if (method === 'POST'){
+      if (!hasRole(auth, ['admin'])) return bad(res, 403, 'Admin only');
+      const body = await readJsonBody(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      const role = String(body.role || 'viewer').toLowerCase();
+      const active = body.active !== false;
+      if (!email) return bad(res, 400, 'Email required');
+      if (!['viewer','creator','admin'].includes(role)) return bad(res, 400, 'Invalid role');
 
-  if (req.method === 'GET') {
-    return json(res, 200, { users: Array.isArray(users)?users:[] });
+      const id = safeId(email);
+      const record = { email, role, active, updatedAt: new Date().toISOString() };
+      await putJson(usersPrefix, id, record, `Upsert user ${email}`);
+      return ok(res, { ok:true });
+    }
+
+    if (method === 'DELETE'){
+      if (!hasRole(auth, ['admin'])) return bad(res, 403, 'Admin only');
+      const body = await readJsonBody(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      if (!email) return bad(res, 400, 'Email required');
+      const id = safeId(email);
+      await deleteJson(usersPrefix, id, `Delete user ${email}`);
+      return ok(res, { ok:true });
+    }
+
+    return bad(res, 405, 'Method not allowed');
+
+  } catch (e){
+    return json(res, 500, { error: e.message || String(e), details: e.data || null });
   }
-
-  const body = await readBody(req);
-
-  if (req.method === 'POST') {
-    const email = String(body.email||'').trim();
-    const role = String(body.role||'viewer').trim();
-    if (!email) return json(res, 400, { error:'email required' });
-    const next = Array.isArray(users)?users:[];
-    const idx = next.findIndex(x => (x.email||'').toLowerCase() === email.toLowerCase());
-    const rec = { email, role, active: body.active !== false };
-    if (idx>=0) next[idx] = Object.assign({}, next[idx], rec);
-    else next.push(rec);
-
-    const saved = await putFile({ token: env.GITHUB_TOKEN, owner: env.GITHUB_OWNER, repo: env.GITHUB_REPO, path: USERS_PATH, branch: env.GITHUB_BRANCH||'main', message: `Update users (${new Date().toISOString()})`, contentStr: JSON.stringify(next, null, 2), sha });
-    if (saved.error) return json(res, 502, { error:'GitHub save users failed', details: saved.error });
-    return json(res, 200, { ok:true, commitUrl: saved.commitUrl });
-  }
-
-  if (req.method === 'DELETE') {
-    const email = String(req.query.email||'').trim();
-    if (!email) return json(res, 400, { error:'email query required' });
-    const next = (Array.isArray(users)?users:[]).filter(x => (x.email||'').toLowerCase() !== email.toLowerCase());
-    const saved = await putFile({ token: env.GITHUB_TOKEN, owner: env.GITHUB_OWNER, repo: env.GITHUB_REPO, path: USERS_PATH, branch: env.GITHUB_BRANCH||'main', message: `Delete user ${email} (${new Date().toISOString()})`, contentStr: JSON.stringify(next, null, 2), sha });
-    if (saved.error) return json(res, 502, { error:'GitHub delete user failed', details: saved.error });
-    return json(res, 200, { ok:true, commitUrl: saved.commitUrl });
-  }
-
-  return json(res, 405, { error:'Method not allowed' });
 };
