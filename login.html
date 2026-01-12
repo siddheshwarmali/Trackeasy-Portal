@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TrackWisy | Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+  <div class="w-full max-w-md">
+    <div class="bg-white shadow-xl border border-slate-200 rounded-2xl p-6">
+      <div class="flex items-center justify-between mb-2">
+        <h1 class="text-xl font-bold text-slate-900">Login</h1>
+        <span class="text-xs px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600">User ID + Password</span>
+      </div>
+      <p class="text-sm text-slate-500 mb-6">Sign in to access the dashboard based on your role.</p>
+
+      <div id="msg" class="hidden mb-4 text-sm rounded-lg border p-3"></div>
+
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="text-xs font-semibold text-slate-600">User ID</label>
+          <input id="userId" class="mt-1 w-full px-3 py-2 border rounded-lg text-sm" placeholder="admin" autocomplete="username" required />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Password</label>
+          <input id="password" type="password" class="mt-1 w-full px-3 py-2 border rounded-lg text-sm" placeholder="********" autocomplete="current-password" required />
+        </div>
+        <button id="btn" type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Sign in</button>
+      </form>
+
+      <div class="mt-5 text-xs text-slate-400">
+        If you don't have credentials, ask an Admin to create your user in User Manager.
+      </div>
+    </div>
+  </div>
+
+<script>
+  const msg = document.getElementById('msg');
+  const btn = document.getElementById('btn');
+  const form = document.getElementById('loginForm');
+
+  function show(kind, text){
+    msg.classList.remove('hidden');
+    msg.className = 'mb-4 text-sm rounded-lg border p-3 ' + (kind==='ok' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800');
+    msg.textContent = text;
+  }
+
+  async function apiJson(url, options){
+    const r = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json' } }, options||{}));
+    const t = await r.text();
+    let j = {};
+    try { j = JSON.parse(t||'{}'); } catch { j = { error: t }; }
+    if (!r.ok) throw new Error(j.error || j.message || t || ('HTTP '+r.status));
+    return j;
+  }
+
+  // If already logged in, redirect to dashboard
+  (async ()=>{
+    try {
+      const me = await apiJson('/api/auth/me');
+      if (me && me.authenticated) {
+        const next = new URLSearchParams(location.search).get('next') || '/';
+        location.href = next;
+      }
+    } catch {}
+  })();
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    msg.classList.add('hidden');
+
+    try {
+      const userId = document.getElementById('userId').value.trim();
+      const password = document.getElementById('password').value;
+      await apiJson('/api/auth/login', { method:'POST', body: JSON.stringify({ userId, password }) });
+      show('ok', 'Login successful. Redirecting…');
+      const next = new URLSearchParams(location.search).get('next') || '/';
+      setTimeout(()=> location.href = next, 400);
+    } catch(err){
+      show('err', err.message || String(err));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+    }
+  });
+</script>
+</body>
+</html>
