@@ -1,10 +1,11 @@
 
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": false,
   "trailingSlash": false,
   "functions": {
     "api/**/*.js": {
-      "runtime": "nodejs24.x"
+      "maxDuration": 30
     }
   }
 }
