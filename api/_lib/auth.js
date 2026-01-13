@@ -1,3 +1,4 @@
+
 const crypto = require('crypto');
 
 function b64urlEncode(input) {
@@ -78,7 +79,7 @@ function readJson(req) {
   });
 }
 
-// Password hashing: PBKDF2
+// PBKDF2 password hashing
 const PBKDF2_ITERS = parseInt(process.env.PBKDF2_ITERS || '120000', 10);
 const PBKDF2_KEYLEN = 32;
 const PBKDF2_DIGEST = 'sha256';
