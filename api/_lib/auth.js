@@ -1,4 +1,3 @@
-
 const crypto = require('crypto');
 
 function b64urlEncode(input) {
