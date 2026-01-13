@@ -4,7 +4,7 @@
   "trailingSlash": false,
   "functions": {
     "api/**/*.js": {
-      "runtime": "nodejs25.x"
+      "runtime": "nodejs24.x"
     }
   }
 }
