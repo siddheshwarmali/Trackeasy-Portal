@@ -79,9 +79,24 @@ function readJson(req) {
   });
 }
 
-function envList(name) {
-  const raw = process.env[name] || '';
-  return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+// Password hashing: PBKDF2
+const PBKDF2_ITERS = parseInt(process.env.PBKDF2_ITERS || '120000', 10);
+const PBKDF2_KEYLEN = 32;
+const PBKDF2_DIGEST = 'sha256';
+
+function hashPassword(password, salt = null) {
+  salt = salt || crypto.randomBytes(16).toString('hex');
+  const dk = crypto.pbkdf2Sync(String(password), salt, PBKDF2_ITERS, PBKDF2_KEYLEN, PBKDF2_DIGEST);
+  return { salt, iters: PBKDF2_ITERS, hash: dk.toString('hex'), alg: `pbkdf2-${PBKDF2_DIGEST}` };
 }
 
-module.exports = { sign, verify, parseCookies, setCookie, json, readJson, envList };
+function verifyPassword(password, passObj) {
+  if (!passObj || !passObj.salt || !passObj.hash) return false;
+  const iters = parseInt(passObj.iters || PBKDF2_ITERS, 10);
+  const dk = crypto.pbkdf2Sync(String(password), String(passObj.salt), iters, PBKDF2_KEYLEN, PBKDF2_DIGEST);
+  const a = Buffer.from(String(passObj.hash), 'hex');
+  if (a.length !== dk.length) return false;
+  return crypto.timingSafeEqual(a, dk);
+}
+
+module.exports = { sign, verify, parseCookies, setCookie, json, readJson, hashPassword, verifyPassword };
