@@ -85,6 +85,54 @@
   window.addEventListener('DOMContentLoaded', ()=>{ twInit(); });
 </script>
 
+
+<script>
+  // Hamburger menu toggle
+  function twMenuOpen(open) {
+    const menu = document.getElementById('tw-menu');
+    if (!menu) return;
+    const next = (typeof open === 'boolean') ? open : menu.classList.contains('hidden');
+    menu.classList.toggle('hidden', !next);
+  }
+
+  // Workspace actions handler
+  async function wsActionSelect(sel) {
+    const action = sel && sel.value ? sel.value : '';
+    if (sel) sel.value = '';
+    if (!action) return;
+    try {
+      if (action === 'rename') return wsRenameCurrent();
+      if (action === 'delete') return await wsDeleteCurrent();
+      if (action === 'save') return await wsSaveNow({ prompt: true });
+      if (action === 'export') return wsExportCurrent();
+      if (action === 'exportExcel') return wsExportCurrentExcel();
+      if (action === 'import') {
+        const inp = document.getElementById('ws-import-file');
+        if (inp) inp.click();
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message || String(e));
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('tw-menu-btn');
+    const menu = document.getElementById('tw-menu');
+
+    if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); twMenuOpen(); });
+
+    document.addEventListener('click', (e) => {
+      if (!menu) return;
+      const inside = menu.contains(e.target) || (btn && btn.contains(e.target));
+      if (!inside) twMenuOpen(false);
+    });
+
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') twMenuOpen(false); });
+  });
+</script>
+
 </head>
 <body class="text-gray-800">
 
@@ -96,29 +144,23 @@
 <div class="mb-4 flex items-center justify-end">
   <div class="relative">
     <button id="tw-menu-btn" type="button"
-      class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 shadow-sm hover:bg-slate-50 z-50"
+      class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 shadow-sm hover:bg-slate-50"
       aria-label="Menu">
       <span class="sr-only">Menu</span>
       <span class="text-slate-700 text-xl leading-none">☰</span>
-      <i data-lucide="menu" class="w-5 h-5 text-slate-700 hidden"></i>
     </button>
 
-    <div id="tw-menu"
-      class="hidden absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50">
+    <div id="tw-menu" class="hidden absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50">
       <div class="px-4 py-3 border-b border-slate-100">
         <div class="text-xs text-slate-500">Signed in as</div>
         <div id="tw-userpill" class="mt-1 text-sm font-semibold text-slate-900">Checking login…</div>
       </div>
       <div class="p-2">
-        <a id="tw-usermgr" href="/user-manager.html"
-          class="hidden w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100">
-          <i data-lucide="users" class="w-4 h-4"></i>
-          <span>User Manager</span>
+        <a id="tw-usermgr" href="/user-manager.html" class="hidden w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100">
+          <span class="text-base">👥</span><span>User Manager</span>
         </a>
-        <button id="tw-logout" type="button"
-          class="mt-2 w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700 hover:bg-red-100">
-          <i data-lucide="log-out" class="w-4 h-4"></i>
-          <span>Logout</span>
+        <button id="tw-logout" type="button" class="mt-2 w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700 hover:bg-red-100">
+          <span class="text-base">⎋</span><span>Logout</span>
         </button>
       </div>
     </div>
@@ -139,14 +181,11 @@
 
                 
 <div class="flex flex-wrap gap-2 items-center">
-  <button type="button" onclick="wsOpenCreateModal()"
-    class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
+  <button type="button" onclick="wsOpenCreateModal()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
     <i data-lucide="plus" class="w-4 h-4"></i><span>New</span>
   </button>
 
-  <select id="ws-actions" onchange="wsActionSelect(this)"
-    class="px-3 py-2 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-    aria-label="Workspace actions">
+  <select id="ws-actions" class="px-3 py-2 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Workspace actions" onchange="wsActionSelect(this)">
     <option value="" selected>Actions</option>
     <option value="rename">Rename</option>
     <option value="delete">Delete</option>
@@ -2414,7 +2453,7 @@ function renderBlockers() {
             document.getElementById('ws-modal').classList.remove('open');
         }
 
-        async function wsModalPrimary() {
+        function wsModalPrimary() {
             const name = (document.getElementById('ws-name').value || '').trim();
             if (!name) { showAlert('Please enter a POD/Project name.'); return; }
 
@@ -2432,16 +2471,6 @@ function renderBlockers() {
                 store.workspaces[wsModalTargetId].updatedAt = new Date().toISOString();
                 wsSaveStore(store);
                 wsRefreshSelect();
-
-                // Persist rename to GitHub immediately (updates dashboard list/name)
-                try {
-                    if (typeof wsSaveNowToGitHub === 'function') {
-                        await wsSaveNowToGitHub();
-                    }
-                } catch (e) {
-                    console.error(e);
-                }
-
                 wsSetIndicator(`Renamed: ${name}`, true);
             } else if (wsModalMode === 'duplicate') {
                 const store = wsLoadStore();
@@ -3210,6 +3239,21 @@ async function wsModalPrimary() {
         wsSaveStore(store);
         wsRefreshSelect();
         wsSetIndicator(`Renamed: ${name}`, true);
+
+        // Persist rename to GitHub so dashboard list updates in DB
+        try {
+            const prevId = wsCurrentId;
+            if (wsCurrentId !== wsModalTargetId) wsCurrentId = wsModalTargetId;
+            if (typeof wsSaveNowToGitHub === 'function') {
+                await wsSaveNowToGitHub();
+            } else if (typeof wsSaveNow === 'function') {
+                await wsSaveNow({ prompt: false });
+            }
+            wsCurrentId = prevId;
+        } catch (e) {
+            console.error(e);
+        }
+
     } else if (wsModalMode === 'duplicate') {
         const store = wsLoadStore();
         if (!wsModalTargetId || !store.workspaces[wsModalTargetId]) return;
