@@ -88,7 +88,7 @@
 </head>
 <body class="text-gray-800">
 
-<!-- App Loader Overlay -->
+<!-- App Loader Overlay (First-load fix) -->
 <div id="tw-app-loader" class="fixed inset-0 z-[99999] bg-slate-950/50 backdrop-blur-sm hidden">
   <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(520px,92vw)] bg-white rounded-2xl shadow-2xl border border-slate-200 p-5">
     <div class="flex items-center gap-3">
@@ -102,7 +102,7 @@
       <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
         <div id="tw-loader-bar" class="h-2 bg-blue-600 w-[15%] transition-all duration-300"></div>
       </div>
-      <div class="mt-2 text-[11px] text-slate-500" id="tw-loader-hint">Tip: Use Workspace → Actions → Save to persist to GitHub.</div>
+      <div class="mt-2 text-[11px] text-slate-500" id="tw-loader-hint">Loading data from GitHub database…</div>
     </div>
   </div>
 </div>
@@ -110,14 +110,16 @@
 
     <div class="max-w-7xl mx-auto p-6 min-h-screen">
         <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Executive Dashboard</h1>
+            <p class="text-gray-600">Comprehensive project and performance overview</p>
+        </div>
 
 
 <!-- Top Bar (Advanced Hamburger) -->
 <div class="mb-4 flex items-center justify-end">
   <div class="relative">
-    <button id="tw-menu-btn" type="button"
-      class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 shadow-sm hover:bg-slate-50"
-      aria-label="Open menu">
+    <button id="tw-menu-btn" type="button" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 shadow-sm hover:bg-slate-50" aria-label="Open menu">
       <span class="sr-only">Menu</span>
       <span class="text-slate-700 text-xl leading-none">☰</span>
     </button>
@@ -128,18 +130,16 @@
         <div id="tw-userpill" class="mt-1 text-sm font-semibold text-slate-900">Checking login…</div>
       </div>
 
-      <!-- Navigation -->
       <div class="p-2">
         <div class="px-2 pt-2 pb-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Navigation</div>
-        <button type="button" onclick="twNav('build')" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-slate-50">
+        <button type="button" data-tw-nav="build" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-slate-50">
           <span class="text-base">🛠️</span><span>Build</span>
         </button>
-        <button type="button" onclick="twNav('run')" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-slate-50">
+        <button type="button" data-tw-nav="run" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-slate-50">
           <span class="text-base">▶️</span><span>Run</span>
         </button>
       </div>
 
-      <!-- Account -->
       <div class="p-2 border-t border-slate-100">
         <div class="px-2 pt-2 pb-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Account</div>
         <a id="tw-usermgr" href="/user-manager.html" class="hidden w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100">
@@ -165,25 +165,38 @@
                     <span id="ws-saved-indicator" class="text-xs text-gray-500 ml-2">Not saved</span>
                 </div>
 
-                
-<div class="flex flex-wrap gap-2 items-center">
-  <button type="button" onclick="wsOpenCreateModal()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
-    <i data-lucide="plus" class="w-4 h-4"></i><span>New</span>
-  </button>
+                <div class="flex flex-wrap gap-2 items-center">
+                    <button type="button" onclick="wsOpenCreateModal()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
+                        <i data-lucide="plus" class="w-4 h-4"></i><span>New</span>
+                    </button>
+                    <button type="button" onclick="wsRenameCurrent()" class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2">
+                        <i data-lucide="pencil" class="w-4 h-4"></i><span>Rename</span>
+                    </button>
+<button type="button" onclick="wsDeleteCurrent()" class="px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 flex items-center gap-2">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i><span>Delete</span>
+                    </button>
 
-  <select id="ws-actions" class="px-3 py-2 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Workspace actions" onchange="wsActionSelect(this)">
-    <option value="" selected>Actions</option>
-    <option value="rename">Rename</option>
-    <option value="delete">Delete</option>
-    <option value="save">Save</option>
-    <option value="export">Export</option>
-    <option value="exportExcel">Export Excel</option>
-    <option value="import">Import</option>
-  </select>
+                    <span class="mx-1 w-px h-8 bg-gray-200"></span>
 
-  <input type="file" id="ws-import-file" accept="application/json" class="hidden" />
-</div>
+                    <button type="button" onclick="wsSaveNow()" class="px-3 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2">
+                        <i data-lucide="save" class="w-4 h-4"></i><span>Save</span>
+                    </button>
+                    <button type="button" onclick="wsExportCurrent()" class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2">
+                        <i data-lucide="download" class="w-4 h-4"></i><span>Export</span>
+                    </button>
+<button type="button" onclick="wsExportCurrentExcel()" class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span>Export Excel</span>
+                    </button>
 
+                    <label class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2 cursor-pointer">
+                        <i data-lucide="upload" class="w-4 h-4"></i><span>Import</span>
+                        <input type="file" id="ws-import-file" accept="application/json" class="hidden" />
+                    </label>
+
+                    <button type="button" onclick="wsClearLocalStorage()" class="px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 flex items-center gap-2" title="Clears ONLY workspace data stored in this browser">
+                        <i data-lucide="database" class="w-4 h-4"></i><span>Clear Storage</span>
+                    </button>
+                </div>
             </div>
             <p class="text-xs text-gray-500 mt-2">
                 Workspaces are saved locally in this browser. Use <span class="font-medium">Export</span> to back up or share, and <span class="font-medium">Import</span> to restore.
@@ -197,7 +210,7 @@
                     <i data-lucide="activity" class="w-6 h-6 mr-2 text-blue-600"></i>
                     Executive View
                 </h2>
-                <div class=\"hidden\"><div class="flex bg-gray-100 p-1 rounded-lg">
+                <div class="hidden"><div class="flex bg-gray-100 p-1 rounded-lg">
                     <button id="tab-build" onclick="switchTab('build')" class="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all bg-white text-blue-600 shadow-sm">
                         <i data-lucide="hammer" class="w-4 h-4"></i><span>Build</span>
                     </button>
@@ -997,28 +1010,24 @@
     </script>
 
 <script>
-  // ---------- Advanced Loader ----------
+  // ===== Advanced Boot + First-load Fix =====
   const twLoader = {
     show(title='Loading…', sub='Please wait', pct=15) {
       const el = document.getElementById('tw-app-loader');
       if (!el) return;
       document.getElementById('tw-loader-title').textContent = title;
       document.getElementById('tw-loader-sub').textContent = sub;
-      twLoader.pct(pct);
+      const bar = document.getElementById('tw-loader-bar');
+      if (bar) bar.style.width = Math.max(5, Math.min(100, pct)) + '%';
       el.classList.remove('hidden');
     },
     hide() {
       const el = document.getElementById('tw-app-loader');
       if (!el) return;
       el.classList.add('hidden');
-    },
-    pct(p) {
-      const bar = document.getElementById('tw-loader-bar');
-      if (bar) bar.style.width = Math.max(5, Math.min(100, p)) + '%';
     }
   };
 
-  // ---------- Hamburger ----------
   function twMenuOpen(open) {
     const menu = document.getElementById('tw-menu');
     if (!menu) return;
@@ -1026,7 +1035,84 @@
     menu.classList.toggle('hidden', !next);
   }
 
-  function twNav(tab) {
+  function twSafeRenderAll() {
+    try {
+      if (typeof renderAll === 'function') renderAll();
+      // Ensure lucide icons re-render (new hamburger UI)
+      try { if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons(); } catch(e) {}
+    } catch(e) {
+      console.error('renderAll failed:', e);
+    }
+  }
+
+  // Debounced GitHub save (no prompt) so changes persist to DB
+  let twSaveTimer = null;
+  function twAutoSaveToGitHub(reason='update') {
+    if (twSaveTimer) clearTimeout(twSaveTimer);
+    twSaveTimer = setTimeout(async () => {
+      try {
+        if (typeof wsSaveNow === 'function') {
+          // GitHub-backed override accepts {prompt:false}
+          await wsSaveNow({ prompt: false });
+        }
+      } catch(e) {
+        console.warn('Auto-save failed:', e);
+      }
+    }, 1200);
+  }
+
+  // Hook milestone save/delete to auto-persist
+  (function hookMilestoneAutosave(){
+    try {
+      const _save = window.saveMilestone;
+      if (typeof _save === 'function') {
+        window.saveMilestone = function(){
+          const r = _save.apply(this, arguments);
+          twAutoSaveToGitHub('milestone-save');
+          return r;
+        };
+      }
+      const _del = window.deleteMilestone;
+      if (typeof _del === 'function') {
+        window.deleteMilestone = function(){
+          const r = _del.apply(this, arguments);
+          twAutoSaveToGitHub('milestone-delete');
+          return r;
+        };
+      }
+    } catch(e) {}
+  })();
+
+  // Patch wsApplyState to always trigger a render after state apply (fixes blank first load)
+  (function patchApplyState(){
+    try {
+      if (typeof window.wsApplyState !== 'function') return;
+      const _apply = window.wsApplyState;
+      window.wsApplyState = function(state, opts){
+        const r = _apply.apply(this, arguments);
+        // Render in next frame even if silent
+        requestAnimationFrame(() => twSafeRenderAll());
+        return r;
+      };
+    } catch(e) {}
+  })();
+
+  // Patch wsSelectWorkspace (async override if exists) to render after load
+  (function patchSelectWorkspace(){
+    try {
+      if (typeof window.wsSelectWorkspace !== 'function') return;
+      const _sel = window.wsSelectWorkspace;
+      window.wsSelectWorkspace = async function(){
+        twLoader.show('Loading dashboard…', 'Fetching from GitHub database', 35);
+        const res = await _sel.apply(this, arguments);
+        twSafeRenderAll();
+        twLoader.hide();
+        return res;
+      };
+    } catch(e) {}
+  })();
+
+  function twNav(tab){
     try {
       if (typeof switchTab === 'function') switchTab(tab);
     } finally {
@@ -1034,78 +1120,7 @@
     }
   }
 
-  // ---------- Workspace Actions Dropdown ----------
-  async function wsActionSelect(sel) {
-    const action = sel && sel.value ? sel.value : '';
-    if (sel) sel.value = '';
-    if (!action) return;
-
-    try {
-      if (action === 'rename') return wsRenameCurrent();
-      if (action === 'delete') {
-        twLoader.show('Deleting dashboard…', 'Removing from GitHub / database', 45);
-        return await Promise.resolve(wsDeleteCurrent());
-      }
-      if (action === 'save') {
-        twLoader.show('Saving dashboard…', 'Persisting to GitHub / database', 55);
-        return await Promise.resolve(wsSaveNow({ prompt: true }));
-      }
-      if (action === 'export') return wsExportCurrent();
-      if (action === 'exportExcel') return wsExportCurrentExcel();
-      if (action === 'import') {
-        const inp = document.getElementById('ws-import-file');
-        if (inp) inp.click();
-        return;
-      }
-    } catch (e) {
-      console.error(e);
-      alert(e.message || String(e));
-    } finally {
-      twLoader.hide();
-    }
-  }
-
-  // ---------- First-load Fix + Advanced Init ----------
-  async function twInitApp() {
-    try {
-      twLoader.show('Starting…', 'Checking session', 15);
-      if (typeof twInit === 'function') {
-        await Promise.resolve(twInit());
-      }
-      twLoader.pct(30);
-
-      // Inject Run iframe content early
-      try {
-        const tmpl = document.getElementById('run-dashboard-template');
-        const iframe = document.getElementById('run-iframe');
-        if (tmpl && iframe && !iframe.srcdoc) {
-          iframe.srcdoc = tmpl.innerHTML;
-        }
-      } catch (e) {
-        console.warn('Run iframe init failed:', e);
-      }
-
-      twLoader.show('Loading dashboards…', 'Syncing workspace list', 45);
-      if (typeof wsInitWorkspaceManager === 'function') {
-        await Promise.resolve(wsInitWorkspaceManager());
-      }
-      twLoader.pct(70);
-
-      // Force a first render (fix: blank on first load)
-      if (typeof renderAll === 'function') {
-        renderAll();
-      }
-
-      twLoader.show('Almost done…', 'Finalizing UI', 88);
-      await new Promise(r => setTimeout(r, 150));
-      twLoader.hide();
-
-    } catch (e) {
-      console.error(e);
-      twLoader.show('Failed to load', e.message || String(e), 100);
-    }
-  }
-
+  // Wire up hamburger + nav
   window.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('tw-menu-btn');
     const menu = document.getElementById('tw-menu');
@@ -1117,7 +1132,24 @@
     });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') twMenuOpen(false); });
 
-    twInitApp();
+    document.querySelectorAll('[data-tw-nav]').forEach(b => {
+      b.addEventListener('click', () => twNav(b.getAttribute('data-tw-nav')));
+    });
+
+    // First-load boot: show loader and force render after workspace init settles
+    twLoader.show('Loading dashboard…', 'Initializing workspace', 20);
+    // Ensure run iframe ready
+    try {
+      const tmpl = document.getElementById('run-dashboard-template');
+      const iframe = document.getElementById('run-iframe');
+      if (tmpl && iframe && !iframe.srcdoc) iframe.srcdoc = tmpl.innerHTML;
+    } catch(e) {}
+
+    // After a short delay, force render and hide loader (covers cases where wsInit runs elsewhere)
+    setTimeout(() => {
+      twSafeRenderAll();
+      twLoader.hide();
+    }, 800);
   });
 </script>
 
@@ -1340,7 +1372,7 @@
                             endDate: parseXlsDate(r['End Date']||r.endDate),
                             actualStartDate: parseXlsDate(r['Actual Start Date']||r.actualStartDate), 
                             actualEndDate: parseXlsDate(r['Actual End Date']||r.actualEndDate), 
-                            remark: r.Remark||r.remark||''
+                            remark: r.Remark || r.remark || '', owner: r.Owner || r.owner || ''
                         }));
                         renderMilestones();
                     } else if(type === 'stories') { mapStories(j); }
@@ -2080,11 +2112,12 @@ function renderBlockers() {
             const isEdit = idx !== null; document.getElementById('milestone-modal-title').textContent = isEdit ? 'Edit Milestone' : 'Add New';
             document.getElementById('ms-index').value = isEdit ? idx : '';
             document.getElementById('btn-delete-ms').classList.toggle('hidden', !isEdit);
-            if(isEdit) { const m = milestones[idx]; document.getElementById('ms-phase').value = m.phase; document.getElementById('ms-start').value = m.startDate; document.getElementById('ms-end').value = m.endDate; document.getElementById('ms-act-start').value = m.actualStartDate; document.getElementById('ms-act-end').value = m.actualEndDate; document.getElementById('ms-remark').value = m.remark; } 
-            else { ['ms-phase','ms-start','ms-end','ms-act-start','ms-act-end','ms-remark'].forEach(id => document.getElementById(id).value = ''); }
+            if(isEdit) { const m = milestones[idx]; document.getElementById('ms-phase').value = m.phase; document.getElementById('ms-start').value = m.startDate; document.getElementById('ms-end').value = m.endDate; document.getElementById('ms-act-start').value = m.actualStartDate; document.getElementById('ms-act-end').value = m.actualEndDate;
+        document.getElementById('ms-owner').value = m.owner || ''; document.getElementById('ms-remark').value = m.remark; } 
+            else { ['ms-phase','ms-start','ms-end','ms-act-start','ms-act-end','ms-remark','ms-owner'].forEach(id => document.getElementById(id).value = ''); }
             document.getElementById('modal-milestone').classList.add('open');
         }
-        function saveMilestone() { const idx = document.getElementById('ms-index').value; const item = { phase: document.getElementById('ms-phase').value, startDate: document.getElementById('ms-start').value, endDate: document.getElementById('ms-end').value, actualStartDate: document.getElementById('ms-act-start').value, actualEndDate: document.getElementById('ms-act-end').value, remark: document.getElementById('ms-remark').value }; if(!item.phase) return alert('Activity Name required'); if(idx === '') milestones.push(item); else milestones[idx] = item; closeModal('modal-milestone'); renderMilestones(); }
+        function saveMilestone() { const idx = document.getElementById('ms-index').value; const item = { phase: document.getElementById('ms-phase').value, startDate: document.getElementById('ms-start').value, endDate: document.getElementById('ms-end').value, actualStartDate: document.getElementById('ms-act-start').value, actualEndDate: document.getElementById('ms-act-end').value, remark: document.getElementById('ms-remark').value, owner: (document.getElementById('ms-owner')?document.getElementById('ms-owner').value:'') }; if(!item.phase) return alert('Activity Name required'); if(idx === '') milestones.push(item); else milestones[idx] = item; closeModal('modal-milestone'); renderMilestones(); }
         function deleteMilestone() { const idx = document.getElementById('ms-index').value; if(idx !== '') { milestones.splice(idx, 1); closeModal('modal-milestone'); renderMilestones(); } }
         function openDisciplineModal() { switchDiscTab('L1'); document.getElementById('modal-discipline').classList.add('open'); }
         function switchDiscTab(tab) { discModalTab = tab; document.getElementById('tab-l1-btn').className = `px-4 py-2 text-sm font-medium border-b-2 ${tab==='L1'?'border-teal-600 text-teal-600':'border-transparent text-gray-500'}`; document.getElementById('tab-l2-btn').className = `px-4 py-2 text-sm font-medium border-b-2 ${tab==='L2'?'border-teal-600 text-teal-600':'border-transparent text-gray-500'}`; const content = document.getElementById('disc-tab-content'); if (tab === 'L1') { content.innerHTML = `<table class="min-w-full divide-y divide-gray-200 mb-6"><thead class="bg-gray-50"><tr><th>Discipline</th><th>Total</th><th>Open</th><th>Closed</th><th>Hold</th><th>Grand Total</th></tr></thead><tbody>${taskDisciplines.map((d,i) => `<tr><td class="p-2 font-medium">${d.discipline}</td><td class="p-2"><input type="number" class="w-full border rounded p-1 text-center" value="${d.totalTasks}" oninput="updateL1(${i},'totalTasks',this.value)"></td><td class="p-2"><input type="number" class="w-full border rounded p-1 text-center" value="${d.openTasks}" oninput="updateL1(${i},'openTasks',this.value)"></td><td class="p-2"><input type="number" class="w-full border rounded p-1 text-center" value="${d.closedTasks}" oninput="updateL1(${i},'closedTasks',this.value)"></td><td class="p-2"><input type="number" class="w-full border rounded p-1 text-center" value="${d.holdTasks}" oninput="updateL1(${i},'holdTasks',this.value)"></td><td class="p-2"><input type="number" id="grand-total-${i}" class="w-full border rounded p-1 text-center font-bold bg-gray-100 text-gray-600 cursor-not-allowed" value="${d.grandTotal}" readonly></td></tr>`).join('')}</tbody></table>`; } else { renderL2EditMode(); } }
@@ -3394,28 +3427,24 @@ async function wsModalPrimary() {
 
 
 <script>
-  // ---------- Advanced Loader ----------
+  // ===== Advanced Boot + First-load Fix =====
   const twLoader = {
     show(title='Loading…', sub='Please wait', pct=15) {
       const el = document.getElementById('tw-app-loader');
       if (!el) return;
       document.getElementById('tw-loader-title').textContent = title;
       document.getElementById('tw-loader-sub').textContent = sub;
-      twLoader.pct(pct);
+      const bar = document.getElementById('tw-loader-bar');
+      if (bar) bar.style.width = Math.max(5, Math.min(100, pct)) + '%';
       el.classList.remove('hidden');
     },
     hide() {
       const el = document.getElementById('tw-app-loader');
       if (!el) return;
       el.classList.add('hidden');
-    },
-    pct(p) {
-      const bar = document.getElementById('tw-loader-bar');
-      if (bar) bar.style.width = Math.max(5, Math.min(100, p)) + '%';
     }
   };
 
-  // ---------- Hamburger ----------
   function twMenuOpen(open) {
     const menu = document.getElementById('tw-menu');
     if (!menu) return;
@@ -3423,7 +3452,84 @@ async function wsModalPrimary() {
     menu.classList.toggle('hidden', !next);
   }
 
-  function twNav(tab) {
+  function twSafeRenderAll() {
+    try {
+      if (typeof renderAll === 'function') renderAll();
+      // Ensure lucide icons re-render (new hamburger UI)
+      try { if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons(); } catch(e) {}
+    } catch(e) {
+      console.error('renderAll failed:', e);
+    }
+  }
+
+  // Debounced GitHub save (no prompt) so changes persist to DB
+  let twSaveTimer = null;
+  function twAutoSaveToGitHub(reason='update') {
+    if (twSaveTimer) clearTimeout(twSaveTimer);
+    twSaveTimer = setTimeout(async () => {
+      try {
+        if (typeof wsSaveNow === 'function') {
+          // GitHub-backed override accepts {prompt:false}
+          await wsSaveNow({ prompt: false });
+        }
+      } catch(e) {
+        console.warn('Auto-save failed:', e);
+      }
+    }, 1200);
+  }
+
+  // Hook milestone save/delete to auto-persist
+  (function hookMilestoneAutosave(){
+    try {
+      const _save = window.saveMilestone;
+      if (typeof _save === 'function') {
+        window.saveMilestone = function(){
+          const r = _save.apply(this, arguments);
+          twAutoSaveToGitHub('milestone-save');
+          return r;
+        };
+      }
+      const _del = window.deleteMilestone;
+      if (typeof _del === 'function') {
+        window.deleteMilestone = function(){
+          const r = _del.apply(this, arguments);
+          twAutoSaveToGitHub('milestone-delete');
+          return r;
+        };
+      }
+    } catch(e) {}
+  })();
+
+  // Patch wsApplyState to always trigger a render after state apply (fixes blank first load)
+  (function patchApplyState(){
+    try {
+      if (typeof window.wsApplyState !== 'function') return;
+      const _apply = window.wsApplyState;
+      window.wsApplyState = function(state, opts){
+        const r = _apply.apply(this, arguments);
+        // Render in next frame even if silent
+        requestAnimationFrame(() => twSafeRenderAll());
+        return r;
+      };
+    } catch(e) {}
+  })();
+
+  // Patch wsSelectWorkspace (async override if exists) to render after load
+  (function patchSelectWorkspace(){
+    try {
+      if (typeof window.wsSelectWorkspace !== 'function') return;
+      const _sel = window.wsSelectWorkspace;
+      window.wsSelectWorkspace = async function(){
+        twLoader.show('Loading dashboard…', 'Fetching from GitHub database', 35);
+        const res = await _sel.apply(this, arguments);
+        twSafeRenderAll();
+        twLoader.hide();
+        return res;
+      };
+    } catch(e) {}
+  })();
+
+  function twNav(tab){
     try {
       if (typeof switchTab === 'function') switchTab(tab);
     } finally {
@@ -3431,78 +3537,7 @@ async function wsModalPrimary() {
     }
   }
 
-  // ---------- Workspace Actions Dropdown ----------
-  async function wsActionSelect(sel) {
-    const action = sel && sel.value ? sel.value : '';
-    if (sel) sel.value = '';
-    if (!action) return;
-
-    try {
-      if (action === 'rename') return wsRenameCurrent();
-      if (action === 'delete') {
-        twLoader.show('Deleting dashboard…', 'Removing from GitHub / database', 45);
-        return await Promise.resolve(wsDeleteCurrent());
-      }
-      if (action === 'save') {
-        twLoader.show('Saving dashboard…', 'Persisting to GitHub / database', 55);
-        return await Promise.resolve(wsSaveNow({ prompt: true }));
-      }
-      if (action === 'export') return wsExportCurrent();
-      if (action === 'exportExcel') return wsExportCurrentExcel();
-      if (action === 'import') {
-        const inp = document.getElementById('ws-import-file');
-        if (inp) inp.click();
-        return;
-      }
-    } catch (e) {
-      console.error(e);
-      alert(e.message || String(e));
-    } finally {
-      twLoader.hide();
-    }
-  }
-
-  // ---------- First-load Fix + Advanced Init ----------
-  async function twInitApp() {
-    try {
-      twLoader.show('Starting…', 'Checking session', 15);
-      if (typeof twInit === 'function') {
-        await Promise.resolve(twInit());
-      }
-      twLoader.pct(30);
-
-      // Inject Run iframe content early
-      try {
-        const tmpl = document.getElementById('run-dashboard-template');
-        const iframe = document.getElementById('run-iframe');
-        if (tmpl && iframe && !iframe.srcdoc) {
-          iframe.srcdoc = tmpl.innerHTML;
-        }
-      } catch (e) {
-        console.warn('Run iframe init failed:', e);
-      }
-
-      twLoader.show('Loading dashboards…', 'Syncing workspace list', 45);
-      if (typeof wsInitWorkspaceManager === 'function') {
-        await Promise.resolve(wsInitWorkspaceManager());
-      }
-      twLoader.pct(70);
-
-      // Force a first render (fix: blank on first load)
-      if (typeof renderAll === 'function') {
-        renderAll();
-      }
-
-      twLoader.show('Almost done…', 'Finalizing UI', 88);
-      await new Promise(r => setTimeout(r, 150));
-      twLoader.hide();
-
-    } catch (e) {
-      console.error(e);
-      twLoader.show('Failed to load', e.message || String(e), 100);
-    }
-  }
-
+  // Wire up hamburger + nav
   window.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('tw-menu-btn');
     const menu = document.getElementById('tw-menu');
@@ -3514,7 +3549,24 @@ async function wsModalPrimary() {
     });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') twMenuOpen(false); });
 
-    twInitApp();
+    document.querySelectorAll('[data-tw-nav]').forEach(b => {
+      b.addEventListener('click', () => twNav(b.getAttribute('data-tw-nav')));
+    });
+
+    // First-load boot: show loader and force render after workspace init settles
+    twLoader.show('Loading dashboard…', 'Initializing workspace', 20);
+    // Ensure run iframe ready
+    try {
+      const tmpl = document.getElementById('run-dashboard-template');
+      const iframe = document.getElementById('run-iframe');
+      if (tmpl && iframe && !iframe.srcdoc) iframe.srcdoc = tmpl.innerHTML;
+    } catch(e) {}
+
+    // After a short delay, force render and hide loader (covers cases where wsInit runs elsewhere)
+    setTimeout(() => {
+      twSafeRenderAll();
+      twLoader.hide();
+    }, 800);
   });
 </script>
 
