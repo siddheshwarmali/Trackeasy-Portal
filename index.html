@@ -115,38 +115,26 @@
                     <span id="ws-saved-indicator" class="text-xs text-gray-500 ml-2">Not saved</span>
                 </div>
 
-                <div class="flex flex-wrap gap-2 items-center">
-                    <button type="button" onclick="wsOpenCreateModal()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
-                        <i data-lucide="plus" class="w-4 h-4"></i><span>New</span>
-                    </button>
-                    <button type="button" onclick="wsRenameCurrent()" class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2">
-                        <i data-lucide="pencil" class="w-4 h-4"></i><span>Rename</span>
-                    </button>
-<button type="button" onclick="wsDeleteCurrent()" class="px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 flex items-center gap-2">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i><span>Delete</span>
-                    </button>
+                
+<div class="flex flex-wrap gap-2 items-center">
+  <button type="button" onclick="wsOpenCreateModal()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
+    <i data-lucide="plus" class="w-4 h-4"></i><span>New</span>
+  </button>
 
-                    <span class="mx-1 w-px h-8 bg-gray-200"></span>
+  <!-- Actions dropdown (replaces Rename/Delete/Save/Export/Export Excel/Import buttons) -->
+  <select id="ws-actions" class="px-3 py-2 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Workspace actions">
+    <option value="" selected>Actions</option>
+    <option value="rename">Rename</option>
+    <option value="delete">Delete</option>
+    <option value="save">Save</option>
+    <option value="export">Export</option>
+    <option value="exportExcel">Export Excel</option>
+    <option value="import">Import</option>
+  </select>
 
-                    <button type="button" onclick="wsSaveNow()" class="px-3 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2">
-                        <i data-lucide="save" class="w-4 h-4"></i><span>Save</span>
-                    </button>
-                    <button type="button" onclick="wsExportCurrent()" class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2">
-                        <i data-lucide="download" class="w-4 h-4"></i><span>Export</span>
-                    </button>
-<button type="button" onclick="wsExportCurrentExcel()" class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2">
-                        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span>Export Excel</span>
-                    </button>
+  <input type="file" id="ws-import-file" accept="application/json" class="hidden" />
+</div>
 
-                    <label class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2 cursor-pointer">
-                        <i data-lucide="upload" class="w-4 h-4"></i><span>Import</span>
-                        <input type="file" id="ws-import-file" accept="application/json" class="hidden" />
-                    </label>
-
-                    <button type="button" onclick="wsClearLocalStorage()" class="px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 flex items-center gap-2" title="Clears ONLY workspace data stored in this browser">
-                        <i data-lucide="database" class="w-4 h-4"></i><span>Clear Storage</span>
-                    </button>
-                </div>
             </div>
             <p class="text-xs text-gray-500 mt-2">
                 Workspaces are saved locally in this browser. Use <span class="font-medium">Export</span> to back up or share, and <span class="font-medium">Import</span> to restore.
