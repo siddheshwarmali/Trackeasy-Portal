@@ -85,81 +85,88 @@
   window.addEventListener('DOMContentLoaded', ()=>{ twInit(); });
 </script>
 
-
-<script>
-  // Hamburger menu toggle
-  function twMenuOpen(open) {
-    const menu = document.getElementById('tw-menu');
-    if (!menu) return;
-    const next = (typeof open === 'boolean') ? open : menu.classList.contains('hidden');
-    menu.classList.toggle('hidden', !next);
-  }
-
-  // Workspace actions handler
-  async function wsActionSelect(sel) {
-    const action = sel && sel.value ? sel.value : '';
-    if (sel) sel.value = '';
-    if (!action) return;
-    try {
-      if (action === 'rename') return wsRenameCurrent();
-      if (action === 'delete') return await wsDeleteCurrent();
-      if (action === 'save') return await wsSaveNow({ prompt: true });
-      if (action === 'export') return wsExportCurrent();
-      if (action === 'exportExcel') return wsExportCurrentExcel();
-      if (action === 'import') {
-        const inp = document.getElementById('ws-import-file');
-        if (inp) inp.click();
-        return;
-      }
-    } catch (e) {
-      console.error(e);
-      alert(e.message || String(e));
-    }
-  }
-
-  window.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('tw-menu-btn');
-    const menu = document.getElementById('tw-menu');
-
-    if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); twMenuOpen(); });
-
-    document.addEventListener('click', (e) => {
-      if (!menu) return;
-      const inside = menu.contains(e.target) || (btn && btn.contains(e.target));
-      if (!inside) twMenuOpen(false);
-    });
-
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') twMenuOpen(false); });
-  });
-</script>
-
 </head>
 <body class="text-gray-800">
+
+<!-- App Loader Overlay -->
+<div id="tw-app-loader" class="fixed inset-0 z-[99999] bg-slate-950/50 backdrop-blur-sm hidden">
+  <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(520px,92vw)] bg-white rounded-2xl shadow-2xl border border-slate-200 p-5">
+    <div class="flex items-center gap-3">
+      <div class="w-6 h-6 rounded-full border-4 border-slate-200 border-t-blue-600 animate-spin"></div>
+      <div>
+        <div class="text-sm font-semibold text-slate-900" id="tw-loader-title">Loading dashboard…</div>
+        <div class="text-xs text-slate-500 mt-0.5" id="tw-loader-sub">Preparing workspace</div>
+      </div>
+    </div>
+    <div class="mt-4">
+      <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div id="tw-loader-bar" class="h-2 bg-blue-600 w-[15%] transition-all duration-300"></div>
+      </div>
+      <div class="mt-2 text-[11px] text-slate-500" id="tw-loader-hint">Tip: Use menu → Workspace → Save to persist to GitHub.</div>
+    </div>
+  </div>
+</div>
+
 
     <div class="max-w-7xl mx-auto p-6 min-h-screen">
         <!-- Header -->
 
 
-<!-- Top Bar (Hamburger) -->
+<!-- Top Bar (Advanced Hamburger) -->
 <div class="mb-4 flex items-center justify-end">
   <div class="relative">
     <button id="tw-menu-btn" type="button"
       class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 shadow-sm hover:bg-slate-50"
-      aria-label="Menu">
+      aria-label="Open menu">
       <span class="sr-only">Menu</span>
       <span class="text-slate-700 text-xl leading-none">☰</span>
     </button>
 
-    <div id="tw-menu" class="hidden absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50">
-      <div class="px-4 py-3 border-b border-slate-100">
+    <div id="tw-menu" class="hidden absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50">
+      <div class="px-4 py-3 border-b border-slate-100 bg-slate-50">
         <div class="text-xs text-slate-500">Signed in as</div>
         <div id="tw-userpill" class="mt-1 text-sm font-semibold text-slate-900">Checking login…</div>
       </div>
+
+      <!-- Navigation -->
       <div class="p-2">
-        <a id="tw-usermgr" href="/user-manager.html" class="hidden w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100">
+        <div class="px-2 pt-2 pb-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Navigation</div>
+        <button type="button" onclick="twNav('build')" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-slate-50">
+          <span class="text-base">🛠️</span><span>Build</span>
+        </button>
+        <button type="button" onclick="twNav('run')" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-slate-50">
+          <span class="text-base">▶️</span><span>Run</span>
+        </button>
+      </div>
+
+      <!-- Workspace -->
+      <div class="p-2 border-t border-slate-100">
+        <div class="px-2 pt-2 pb-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Workspace</div>
+        <div class="px-2 py-2">
+          <select id="tw-ws-select" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="twSelectWorkspace(this.value)">
+            <option value="">Loading…</option>
+          </select>
+          <div class="mt-1 text-[11px] text-slate-500" id="tw-ws-indicator"> </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 px-2 pb-2">
+          <button type="button" onclick="twWsAction('new')" class="px-3 py-2 rounded-xl text-sm bg-blue-600 text-white hover:bg-blue-700">New</button>
+          <button type="button" onclick="twWsAction('rename')" class="px-3 py-2 rounded-xl text-sm bg-slate-100 hover:bg-slate-200">Rename</button>
+          <button type="button" onclick="twWsAction('save')" class="px-3 py-2 rounded-xl text-sm bg-green-600 text-white hover:bg-green-700">Save</button>
+          <button type="button" onclick="twWsAction('delete')" class="px-3 py-2 rounded-xl text-sm bg-red-50 text-red-700 border border-red-200 hover:bg-red-100">Delete</button>
+          <button type="button" onclick="twWsAction('export')" class="px-3 py-2 rounded-xl text-sm bg-slate-100 hover:bg-slate-200">Export</button>
+          <button type="button" onclick="twWsAction('exportExcel')" class="px-3 py-2 rounded-xl text-sm bg-slate-100 hover:bg-slate-200">Export Excel</button>
+          <button type="button" onclick="twWsAction('import')" class="col-span-2 px-3 py-2 rounded-xl text-sm bg-slate-100 hover:bg-slate-200">Import</button>
+        </div>
+      </div>
+
+      <!-- Account -->
+      <div class="p-2 border-t border-slate-100">
+        <div class="px-2 pt-2 pb-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Account</div>
+        <a id="tw-usermgr" href="/user-manager.html" class="hidden w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100">
           <span class="text-base">👥</span><span>User Manager</span>
         </a>
-        <button id="tw-logout" type="button" class="mt-2 w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700 hover:bg-red-100">
+        <button id="tw-logout" type="button" class="mt-2 w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm bg-red-50 border border-red-200 text-red-700 hover:bg-red-100">
           <span class="text-base">⎋</span><span>Logout</span>
         </button>
       </div>
@@ -181,20 +188,9 @@
 
                 
 <div class="flex flex-wrap gap-2 items-center">
-  <button type="button" onclick="wsOpenCreateModal()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
-    <i data-lucide="plus" class="w-4 h-4"></i><span>New</span>
+  <button type="button" onclick="twMenuOpen(true)" class="px-3 py-2 text-sm bg-slate-100 text-slate-800 rounded-md hover:bg-slate-200 flex items-center gap-2">
+    <span class="text-base">⚙️</span><span>Actions</span>
   </button>
-
-  <select id="ws-actions" class="px-3 py-2 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Workspace actions" onchange="wsActionSelect(this)">
-    <option value="" selected>Actions</option>
-    <option value="rename">Rename</option>
-    <option value="delete">Delete</option>
-    <option value="save">Save</option>
-    <option value="export">Export</option>
-    <option value="exportExcel">Export Excel</option>
-    <option value="import">Import</option>
-  </select>
-
   <input type="file" id="ws-import-file" accept="application/json" class="hidden" />
 </div>
 
@@ -211,14 +207,14 @@
                     <i data-lucide="activity" class="w-6 h-6 mr-2 text-blue-600"></i>
                     Executive View
                 </h2>
-                <div class="flex bg-gray-100 p-1 rounded-lg">
+                <div class=\"hidden\"><div class="flex bg-gray-100 p-1 rounded-lg">
                     <button id="tab-build" onclick="switchTab('build')" class="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all bg-white text-blue-600 shadow-sm">
                         <i data-lucide="hammer" class="w-4 h-4"></i><span>Build</span>
                     </button>
                     <button id="tab-run" onclick="switchTab('run')" class="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all text-gray-600 hover:text-gray-900">
                         <i data-lucide="play" class="w-4 h-4"></i><span>Run</span>
                     </button>
-                </div>
+                </div></div>
             </div>
 
             <!-- BUILD TAB CONTENT -->
@@ -1009,6 +1005,180 @@
             btn.innerHTML = originalText;
         }
     </script>
+
+<script>
+  // ---------- Advanced Loader ----------
+  const twLoader = {
+    show(title='Loading…', sub='Please wait', pct=15) {
+      const el = document.getElementById('tw-app-loader');
+      if (!el) return;
+      document.getElementById('tw-loader-title').textContent = title;
+      document.getElementById('tw-loader-sub').textContent = sub;
+      twLoader.pct(pct);
+      el.classList.remove('hidden');
+    },
+    hide() {
+      const el = document.getElementById('tw-app-loader');
+      if (!el) return;
+      el.classList.add('hidden');
+    },
+    pct(p) {
+      const bar = document.getElementById('tw-loader-bar');
+      if (bar) bar.style.width = Math.max(5, Math.min(100, p)) + '%';
+    }
+  };
+
+  // ---------- Advanced Hamburger ----------
+  function twMenuOpen(open) {
+    const menu = document.getElementById('tw-menu');
+    if (!menu) return;
+    const next = (typeof open === 'boolean') ? open : menu.classList.contains('hidden');
+    menu.classList.toggle('hidden', !next);
+  }
+
+  function twNav(tab) {
+    try {
+      if (typeof switchTab === 'function') switchTab(tab);
+    } finally {
+      twMenuOpen(false);
+    }
+  }
+
+  // Workspace select inside hamburger mirrors main workspace select
+  function twSyncWsSelectFromMain() {
+    const main = document.getElementById('ws-select');
+    const tw = document.getElementById('tw-ws-select');
+    if (!main || !tw) return;
+    tw.innerHTML = main.innerHTML;
+    tw.value = main.value;
+    const ind = document.getElementById('tw-ws-indicator');
+    const saved = document.getElementById('ws-saved-indicator');
+    if (ind && saved) ind.textContent = saved.textContent || '';
+  }
+
+  async function twSelectWorkspace(id) {
+    try {
+      twMenuOpen(false);
+      if (!id) return;
+      if (typeof wsSelectWorkspace === 'function') {
+        twLoader.show('Loading dashboard…', 'Switching workspace', 35);
+        twLoader.pct(45);
+        await Promise.resolve(wsSelectWorkspace(id));
+        // Ensure render on first load / after switch
+        if (typeof renderAll === 'function') renderAll();
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message || String(e));
+    } finally {
+      twLoader.hide();
+      // sync selects
+      setTimeout(twSyncWsSelectFromMain, 50);
+    }
+  }
+
+  async function twWsAction(action) {
+    try {
+      twMenuOpen(false);
+      if (!action) return;
+      if (action === 'new') return wsOpenCreateModal && wsOpenCreateModal();
+      if (action === 'rename') return wsRenameCurrent && wsRenameCurrent();
+      if (action === 'delete') {
+        twLoader.show('Deleting dashboard…', 'Removing from GitHub / database', 40);
+        return await Promise.resolve(wsDeleteCurrent && wsDeleteCurrent());
+      }
+      if (action === 'save') {
+        twLoader.show('Saving dashboard…', 'Persisting to GitHub / database', 45);
+        return await Promise.resolve(wsSaveNow && wsSaveNow({ prompt: true }));
+      }
+      if (action === 'export') return wsExportCurrent && wsExportCurrent();
+      if (action === 'exportExcel') return wsExportCurrentExcel && wsExportCurrentExcel();
+      if (action === 'import') {
+        const inp = document.getElementById('ws-import-file');
+        if (inp) inp.click();
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message || String(e));
+    } finally {
+      twLoader.hide();
+      setTimeout(twSyncWsSelectFromMain, 50);
+    }
+  }
+
+  // ---------- First-load Fix + Advanced Init ----------
+  async function twInitApp() {
+    try {
+      twLoader.show('Starting…', 'Checking session', 15);
+      // Ensure auth init runs (existing twInit redirects if not logged in)
+      if (typeof twInit === 'function') {
+        await Promise.resolve(twInit());
+      }
+      twLoader.pct(30);
+
+      // Inject Run iframe content early so Run tab is ready
+      try {
+        const tmpl = document.getElementById('run-dashboard-template');
+        const iframe = document.getElementById('run-iframe');
+        if (tmpl && iframe && !iframe.srcdoc) {
+          iframe.srcdoc = tmpl.innerHTML;
+        }
+      } catch (e) {
+        console.warn('Run iframe init failed:', e);
+      }
+
+      twLoader.show('Loading dashboards…', 'Syncing workspace list', 45);
+
+      // Initialize workspace manager (some versions are async)
+      if (typeof wsInitWorkspaceManager === 'function') {
+        await Promise.resolve(wsInitWorkspaceManager());
+      }
+      twLoader.pct(70);
+
+      // Ensure first-time render happens (this fixes "loads only after switching dashboard")
+      if (typeof renderAll === 'function') {
+        renderAll();
+      }
+
+      // Sync hamburger workspace select from main select
+      setTimeout(twSyncWsSelectFromMain, 100);
+
+      // Hook main workspace select changes to keep hamburger select updated
+      const mainSel = document.getElementById('ws-select');
+      if (mainSel) {
+        mainSel.addEventListener('change', () => setTimeout(twSyncWsSelectFromMain, 50));
+      }
+
+      twLoader.show('Almost done…', 'Finalizing UI', 88);
+      // Allow browser a tick to paint
+      await new Promise(r => setTimeout(r, 150));
+      twLoader.hide();
+
+    } catch (e) {
+      console.error(e);
+      twLoader.show('Failed to load', e.message || String(e), 100);
+      // keep visible so user can read
+    }
+  }
+
+  // Close menu on outside click and Escape; open on button
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('tw-menu-btn');
+    const menu = document.getElementById('tw-menu');
+    if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); twMenuOpen(); });
+    document.addEventListener('click', (e) => {
+      if (!menu) return;
+      const inside = menu.contains(e.target) || (btn && btn.contains(e.target));
+      if (!inside) twMenuOpen(false);
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') twMenuOpen(false); });
+
+    // Start app init after DOM is ready
+    twInitApp();
+  });
+</script>
+
 </body>
 </html>
 </template>
@@ -3239,21 +3409,6 @@ async function wsModalPrimary() {
         wsSaveStore(store);
         wsRefreshSelect();
         wsSetIndicator(`Renamed: ${name}`, true);
-
-        // Persist rename to GitHub so dashboard list updates in DB
-        try {
-            const prevId = wsCurrentId;
-            if (wsCurrentId !== wsModalTargetId) wsCurrentId = wsModalTargetId;
-            if (typeof wsSaveNowToGitHub === 'function') {
-                await wsSaveNowToGitHub();
-            } else if (typeof wsSaveNow === 'function') {
-                await wsSaveNow({ prompt: false });
-            }
-            wsCurrentId = prevId;
-        } catch (e) {
-            console.error(e);
-        }
-
     } else if (wsModalMode === 'duplicate') {
         const store = wsLoadStore();
         if (!wsModalTargetId || !store.workspaces[wsModalTargetId]) return;
@@ -3294,6 +3449,180 @@ async function wsModalPrimary() {
             </div>
         </div>
     </div>
+
+
+<script>
+  // ---------- Advanced Loader ----------
+  const twLoader = {
+    show(title='Loading…', sub='Please wait', pct=15) {
+      const el = document.getElementById('tw-app-loader');
+      if (!el) return;
+      document.getElementById('tw-loader-title').textContent = title;
+      document.getElementById('tw-loader-sub').textContent = sub;
+      twLoader.pct(pct);
+      el.classList.remove('hidden');
+    },
+    hide() {
+      const el = document.getElementById('tw-app-loader');
+      if (!el) return;
+      el.classList.add('hidden');
+    },
+    pct(p) {
+      const bar = document.getElementById('tw-loader-bar');
+      if (bar) bar.style.width = Math.max(5, Math.min(100, p)) + '%';
+    }
+  };
+
+  // ---------- Advanced Hamburger ----------
+  function twMenuOpen(open) {
+    const menu = document.getElementById('tw-menu');
+    if (!menu) return;
+    const next = (typeof open === 'boolean') ? open : menu.classList.contains('hidden');
+    menu.classList.toggle('hidden', !next);
+  }
+
+  function twNav(tab) {
+    try {
+      if (typeof switchTab === 'function') switchTab(tab);
+    } finally {
+      twMenuOpen(false);
+    }
+  }
+
+  // Workspace select inside hamburger mirrors main workspace select
+  function twSyncWsSelectFromMain() {
+    const main = document.getElementById('ws-select');
+    const tw = document.getElementById('tw-ws-select');
+    if (!main || !tw) return;
+    tw.innerHTML = main.innerHTML;
+    tw.value = main.value;
+    const ind = document.getElementById('tw-ws-indicator');
+    const saved = document.getElementById('ws-saved-indicator');
+    if (ind && saved) ind.textContent = saved.textContent || '';
+  }
+
+  async function twSelectWorkspace(id) {
+    try {
+      twMenuOpen(false);
+      if (!id) return;
+      if (typeof wsSelectWorkspace === 'function') {
+        twLoader.show('Loading dashboard…', 'Switching workspace', 35);
+        twLoader.pct(45);
+        await Promise.resolve(wsSelectWorkspace(id));
+        // Ensure render on first load / after switch
+        if (typeof renderAll === 'function') renderAll();
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message || String(e));
+    } finally {
+      twLoader.hide();
+      // sync selects
+      setTimeout(twSyncWsSelectFromMain, 50);
+    }
+  }
+
+  async function twWsAction(action) {
+    try {
+      twMenuOpen(false);
+      if (!action) return;
+      if (action === 'new') return wsOpenCreateModal && wsOpenCreateModal();
+      if (action === 'rename') return wsRenameCurrent && wsRenameCurrent();
+      if (action === 'delete') {
+        twLoader.show('Deleting dashboard…', 'Removing from GitHub / database', 40);
+        return await Promise.resolve(wsDeleteCurrent && wsDeleteCurrent());
+      }
+      if (action === 'save') {
+        twLoader.show('Saving dashboard…', 'Persisting to GitHub / database', 45);
+        return await Promise.resolve(wsSaveNow && wsSaveNow({ prompt: true }));
+      }
+      if (action === 'export') return wsExportCurrent && wsExportCurrent();
+      if (action === 'exportExcel') return wsExportCurrentExcel && wsExportCurrentExcel();
+      if (action === 'import') {
+        const inp = document.getElementById('ws-import-file');
+        if (inp) inp.click();
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message || String(e));
+    } finally {
+      twLoader.hide();
+      setTimeout(twSyncWsSelectFromMain, 50);
+    }
+  }
+
+  // ---------- First-load Fix + Advanced Init ----------
+  async function twInitApp() {
+    try {
+      twLoader.show('Starting…', 'Checking session', 15);
+      // Ensure auth init runs (existing twInit redirects if not logged in)
+      if (typeof twInit === 'function') {
+        await Promise.resolve(twInit());
+      }
+      twLoader.pct(30);
+
+      // Inject Run iframe content early so Run tab is ready
+      try {
+        const tmpl = document.getElementById('run-dashboard-template');
+        const iframe = document.getElementById('run-iframe');
+        if (tmpl && iframe && !iframe.srcdoc) {
+          iframe.srcdoc = tmpl.innerHTML;
+        }
+      } catch (e) {
+        console.warn('Run iframe init failed:', e);
+      }
+
+      twLoader.show('Loading dashboards…', 'Syncing workspace list', 45);
+
+      // Initialize workspace manager (some versions are async)
+      if (typeof wsInitWorkspaceManager === 'function') {
+        await Promise.resolve(wsInitWorkspaceManager());
+      }
+      twLoader.pct(70);
+
+      // Ensure first-time render happens (this fixes "loads only after switching dashboard")
+      if (typeof renderAll === 'function') {
+        renderAll();
+      }
+
+      // Sync hamburger workspace select from main select
+      setTimeout(twSyncWsSelectFromMain, 100);
+
+      // Hook main workspace select changes to keep hamburger select updated
+      const mainSel = document.getElementById('ws-select');
+      if (mainSel) {
+        mainSel.addEventListener('change', () => setTimeout(twSyncWsSelectFromMain, 50));
+      }
+
+      twLoader.show('Almost done…', 'Finalizing UI', 88);
+      // Allow browser a tick to paint
+      await new Promise(r => setTimeout(r, 150));
+      twLoader.hide();
+
+    } catch (e) {
+      console.error(e);
+      twLoader.show('Failed to load', e.message || String(e), 100);
+      // keep visible so user can read
+    }
+  }
+
+  // Close menu on outside click and Escape; open on button
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('tw-menu-btn');
+    const menu = document.getElementById('tw-menu');
+    if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); twMenuOpen(); });
+    document.addEventListener('click', (e) => {
+      if (!menu) return;
+      const inside = menu.contains(e.target) || (btn && btn.contains(e.target));
+      if (!inside) twMenuOpen(false);
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') twMenuOpen(false); });
+
+    // Start app init after DOM is ready
+    twInitApp();
+  });
+</script>
 
 </body>
 </html>
