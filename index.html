@@ -90,17 +90,39 @@
 
     <div class="max-w-7xl mx-auto p-6 min-h-screen">
         <!-- Header -->
-        <div class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 mb-2">Executive Dashboard</h1>
-            <p class="text-gray-600">Comprehensive project and performance overview</p>
-        </div>
 
-        
-        
-<div id="tw-userbar" class="mb-4 flex flex-wrap items-center gap-2 justify-end">
-  <span id="tw-userpill" class="text-xs px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700">Checking login…</span>
-  <a id="tw-usermgr" href="/user-manager.html" class="hidden text-xs px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100">User Manager</a>
-  <button id="tw-logout" type="button" class="text-xs px-3 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 hover:bg-red-100">Logout</button>
+
+<!-- Top Bar (Hamburger) -->
+<div class="mb-4 flex items-center justify-end">
+  <div class="relative">
+    <button id="tw-menu-btn" type="button"
+      class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 shadow-sm hover:bg-slate-50 z-50"
+      aria-label="Menu">
+      <span class="sr-only">Menu</span>
+      <span class="text-slate-700 text-xl leading-none">☰</span>
+      <i data-lucide="menu" class="w-5 h-5 text-slate-700 hidden"></i>
+    </button>
+
+    <div id="tw-menu"
+      class="hidden absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50">
+      <div class="px-4 py-3 border-b border-slate-100">
+        <div class="text-xs text-slate-500">Signed in as</div>
+        <div id="tw-userpill" class="mt-1 text-sm font-semibold text-slate-900">Checking login…</div>
+      </div>
+      <div class="p-2">
+        <a id="tw-usermgr" href="/user-manager.html"
+          class="hidden w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100">
+          <i data-lucide="users" class="w-4 h-4"></i>
+          <span>User Manager</span>
+        </a>
+        <button id="tw-logout" type="button"
+          class="mt-2 w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700 hover:bg-red-100">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+          <span>Logout</span>
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Workspace Manager (NEW: Multi-dashboard + Local Save/Load) -->
@@ -117,12 +139,14 @@
 
                 
 <div class="flex flex-wrap gap-2 items-center">
-  <button type="button" onclick="wsOpenCreateModal()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
+  <button type="button" onclick="wsOpenCreateModal()"
+    class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
     <i data-lucide="plus" class="w-4 h-4"></i><span>New</span>
   </button>
 
-  <!-- Actions dropdown (replaces Rename/Delete/Save/Export/Export Excel/Import buttons) -->
-  <select id="ws-actions" class="px-3 py-2 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Workspace actions">
+  <select id="ws-actions" onchange="wsActionSelect(this)"
+    class="px-3 py-2 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+    aria-label="Workspace actions">
     <option value="" selected>Actions</option>
     <option value="rename">Rename</option>
     <option value="delete">Delete</option>
@@ -2390,7 +2414,7 @@ function renderBlockers() {
             document.getElementById('ws-modal').classList.remove('open');
         }
 
-        function wsModalPrimary() {
+        async function wsModalPrimary() {
             const name = (document.getElementById('ws-name').value || '').trim();
             if (!name) { showAlert('Please enter a POD/Project name.'); return; }
 
@@ -2408,6 +2432,16 @@ function renderBlockers() {
                 store.workspaces[wsModalTargetId].updatedAt = new Date().toISOString();
                 wsSaveStore(store);
                 wsRefreshSelect();
+
+                // Persist rename to GitHub immediately (updates dashboard list/name)
+                try {
+                    if (typeof wsSaveNowToGitHub === 'function') {
+                        await wsSaveNowToGitHub();
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+
                 wsSetIndicator(`Renamed: ${name}`, true);
             } else if (wsModalMode === 'duplicate') {
                 const store = wsLoadStore();
