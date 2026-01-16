@@ -95,13 +95,4 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(Buffer.from(key, 'hex'), Buffer.from(check, 'hex'));
 }
 
-module.exports = {
-  COOKIE_NAME,
-  parseCookies,
-  setCookie,
-  clearCookie,
-  makeToken,
-  verifyToken,
-  hashPassword,
-  verifyPassword,
-};
+module.exports = { COOKIE_NAME, parseCookies, setCookie, clearCookie, makeToken, verifyToken, hashPassword, verifyPassword };
