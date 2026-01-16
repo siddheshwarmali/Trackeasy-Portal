@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Executive Dashboard</title>
-<!-- TW_BUILD_STAMP: 2026-01-16 15:28 IST -->
+<!-- TW_BUILD_STAMP: 2026-01-16 15:28 IST (rename-db-fix) -->
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -174,38 +174,22 @@
     class="px-3 py-2 text-sm bg-slate-100 text-slate-800 rounded-md hover:bg-slate-200 flex items-center gap-2 active:scale-[0.99] transition"
     aria-haspopup="menu" aria-controls="ws-actions-menu" aria-expanded="false">
     <span class="text-base">⚙️</span><span>Actions</span>
-    <svg class="w-4 h-4 text-slate-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/>
-    </svg>
+    <svg class="w-4 h-4 text-slate-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
   </button>
-
   <div id="ws-actions-backdrop" class="hidden fixed inset-0 bg-slate-950/30 z-30" aria-hidden="true"></div>
-
-  <div id="ws-actions-menu"
-    class="hidden z-40 fixed inset-x-4 bottom-4 sm:inset-auto sm:absolute sm:right-0 sm:top-full sm:mt-2 w-[calc(100%-2rem)] sm:w-64 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden"
-    role="menu" aria-label="Workspace actions">
-
-    <div class="sm:hidden px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-      <div class="text-sm font-semibold text-slate-800">Workspace Actions</div>
-      <button type="button" class="text-slate-500 hover:text-slate-800" data-ws-close aria-label="Close">✕</button>
-    </div>
-
+  <div id="ws-actions-menu" class="hidden z-40 fixed inset-x-4 bottom-4 sm:inset-auto sm:absolute sm:right-0 sm:top-full sm:mt-2 w-[calc(100%-2rem)] sm:w-64 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden" role="menu" aria-label="Workspace actions">
+    <div class="sm:hidden px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between"><div class="text-sm font-semibold text-slate-800">Workspace Actions</div><button type="button" class="text-slate-500 hover:text-slate-800" data-ws-close aria-label="Close">✕</button></div>
     <div class="p-2">
       <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="new" role="menuitem">New workspace</button>
       <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="rename" role="menuitem">Rename</button>
       <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="save" role="menuitem">Save</button>
       <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-red-50 active:bg-red-100 text-red-700" data-ws-action="delete" role="menuitem">Delete</button>
-
       <div class="my-2 h-px bg-slate-100"></div>
-
       <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="export" role="menuitem">Export (JSON)</button>
       <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="exportExcel" role="menuitem">Export (Excel)</button>
       <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="import" role="menuitem">Import</button>
     </div>
-
-    <div class="sm:hidden px-4 py-3 border-t border-slate-100 bg-slate-50">
-      <button type="button" class="w-full px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium" data-ws-close>Done</button>
-    </div>
+    <div class="sm:hidden px-4 py-3 border-t border-slate-100 bg-slate-50"><button type="button" class="w-full px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium" data-ws-close>Done</button></div>
   </div>
 </div>
 
@@ -1204,8 +1188,6 @@
     menu.classList.remove('hidden');
     btn.setAttribute('aria-expanded','true');
     if(back) back.classList.remove('hidden');
-    const first = menu.querySelector('[data-ws-action]');
-    if(first) setTimeout(()=>first.focus(), 0);
   }
   function closeMenu(){
     const menu = qs('ws-actions-menu');
@@ -1228,44 +1210,25 @@
       return;
     }
   }
-
   window.addEventListener('DOMContentLoaded', ()=>{
     const btn = qs('ws-actions-btn');
     const menu = qs('ws-actions-menu');
     const back = qs('ws-actions-backdrop');
-
-    if(btn){
-      btn.addEventListener('click', (e)=>{
-        e.preventDefault();
-        e.stopPropagation();
-        isOpen() ? closeMenu() : openMenu();
-      });
-    }
-    if(back){ back.addEventListener('click', closeMenu); }
-
-    if(menu){
-      menu.addEventListener('click', async (e)=>{
-        const t=e.target;
-        const closeBtn = t && t.closest ? t.closest('[data-ws-close]') : null;
-        if(closeBtn){ e.preventDefault(); closeMenu(); return; }
-        const item = t && t.closest ? t.closest('[data-ws-action]') : null;
-        if(!item) return;
-        e.preventDefault();
-        const action=item.getAttribute('data-ws-action');
-        closeMenu();
-        try{ await perform(action); }
-        catch(err){ console.error(err); alert(err.message || String(err)); }
-      });
-      menu.addEventListener('keydown', (e)=>{
-        if(e.key==='Escape'){ e.preventDefault(); closeMenu(); btn && btn.focus(); }
-      });
-    }
-
-    document.addEventListener('click', (e)=>{
-      if(!isOpen()) return;
-      const inside = (menu && menu.contains(e.target)) || (btn && btn.contains(e.target));
-      if(!inside) closeMenu();
+    if(btn) btn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); isOpen()?closeMenu():openMenu(); });
+    if(back) back.addEventListener('click', closeMenu);
+    if(menu) menu.addEventListener('click', async (e)=>{
+      const t=e.target;
+      const c=t && t.closest ? t.closest('[data-ws-close]') : null;
+      if(c){ e.preventDefault(); closeMenu(); return; }
+      const item=t && t.closest ? t.closest('[data-ws-action]') : null;
+      if(!item) return;
+      e.preventDefault();
+      const action=item.getAttribute('data-ws-action');
+      closeMenu();
+      try{ await perform(action); }catch(err){ console.error(err); alert(err.message||String(err)); }
     });
+    document.addEventListener('click', (e)=>{ if(!isOpen()) return; const inside = (menu && menu.contains(e.target)) || (btn && btn.contains(e.target)); if(!inside) closeMenu(); });
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenu(); });
   });
 })();
 
@@ -2746,7 +2709,7 @@ function renderBlockers() {
                 wsRefreshSelect();
                 wsSetIndicator(`Renamed: ${name}`, true);
                 // Persist rename to GitHub/database so it survives refresh
-                try { if (wsModalTargetId === wsCurrentId && typeof wsSaveNowToGitHub === 'function') { wsSaveNowToGitHub(); } } catch(e) {}
+                if (typeof wsPersistRenameToGitHub === 'function') { wsPersistRenameToGitHub(wsModalTargetId, name).catch(e=>console.error(e)); }
             } else if (wsModalMode === 'duplicate') {
                 const store = wsLoadStore();
                 if (!wsModalTargetId || !store.workspaces[wsModalTargetId]) return;
@@ -3001,6 +2964,45 @@ const gh6List = () => gh6Request('GET', { list: 1 });
 const gh6Get = (id) => gh6Request('GET', { dash: id });
 const gh6Save = (id, state) => gh6Request('POST', { dash: id }, { state, name: (state && state.__meta && state.__meta.name) ? state.__meta.name : null });
 const gh6Delete = (id) => gh6Request('DELETE', { dash: id });
+
+// Persist workspace rename to GitHub/database by updating stored state.__meta.name
+async function wsPersistRenameToGitHub(workspaceId, newName){
+  if(!workspaceId || !newName) return;
+  try{
+    gh6Overlay(true, 'Saving workspace name...');
+    const store = wsLoadStore();
+    let state = store.workspaces && store.workspaces[workspaceId] ? store.workspaces[workspaceId].state : null;
+    if(!state){
+      const res = await gh6Get(workspaceId);
+      state = (res && res.state) ? res.state : (res && res.data && res.data.state ? res.data.state : null);
+    }
+    if(!state){
+      state = wsGetState();
+    }
+    state.__meta = state.__meta || {};
+    state.__meta.name = newName;
+    await gh6Save(workspaceId, state);
+    try{
+      const st = wsLoadStore();
+      if(st.workspaces && st.workspaces[workspaceId]){
+        st.workspaces[workspaceId].name = newName;
+        st.workspaces[workspaceId].state = gh6SanitizeState(state);
+        st.workspaces[workspaceId].updatedAt = new Date().toISOString();
+        wsSaveStore(st);
+        wsRefreshSelect();
+      }
+    }catch(e){}
+    try{ await gh6SyncListIntoStore(); }catch(e){}
+    wsSetIndicator('Renamed ✓ ' + new Date().toLocaleTimeString(), true);
+  }catch(e){
+    console.error(e);
+    wsSetIndicator('Rename save failed (see console)', false);
+    alert(e.message || String(e));
+  }finally{
+    gh6Overlay(false);
+  }
+}
+
 
 // Prevent race conditions when switching dashboards quickly
 let gh6LoadSeq = 0;
@@ -3748,8 +3750,6 @@ async function wsModalPrimary() {
     menu.classList.remove('hidden');
     btn.setAttribute('aria-expanded','true');
     if(back) back.classList.remove('hidden');
-    const first = menu.querySelector('[data-ws-action]');
-    if(first) setTimeout(()=>first.focus(), 0);
   }
   function closeMenu(){
     const menu = qs('ws-actions-menu');
@@ -3772,44 +3772,25 @@ async function wsModalPrimary() {
       return;
     }
   }
-
   window.addEventListener('DOMContentLoaded', ()=>{
     const btn = qs('ws-actions-btn');
     const menu = qs('ws-actions-menu');
     const back = qs('ws-actions-backdrop');
-
-    if(btn){
-      btn.addEventListener('click', (e)=>{
-        e.preventDefault();
-        e.stopPropagation();
-        isOpen() ? closeMenu() : openMenu();
-      });
-    }
-    if(back){ back.addEventListener('click', closeMenu); }
-
-    if(menu){
-      menu.addEventListener('click', async (e)=>{
-        const t=e.target;
-        const closeBtn = t && t.closest ? t.closest('[data-ws-close]') : null;
-        if(closeBtn){ e.preventDefault(); closeMenu(); return; }
-        const item = t && t.closest ? t.closest('[data-ws-action]') : null;
-        if(!item) return;
-        e.preventDefault();
-        const action=item.getAttribute('data-ws-action');
-        closeMenu();
-        try{ await perform(action); }
-        catch(err){ console.error(err); alert(err.message || String(err)); }
-      });
-      menu.addEventListener('keydown', (e)=>{
-        if(e.key==='Escape'){ e.preventDefault(); closeMenu(); btn && btn.focus(); }
-      });
-    }
-
-    document.addEventListener('click', (e)=>{
-      if(!isOpen()) return;
-      const inside = (menu && menu.contains(e.target)) || (btn && btn.contains(e.target));
-      if(!inside) closeMenu();
+    if(btn) btn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); isOpen()?closeMenu():openMenu(); });
+    if(back) back.addEventListener('click', closeMenu);
+    if(menu) menu.addEventListener('click', async (e)=>{
+      const t=e.target;
+      const c=t && t.closest ? t.closest('[data-ws-close]') : null;
+      if(c){ e.preventDefault(); closeMenu(); return; }
+      const item=t && t.closest ? t.closest('[data-ws-action]') : null;
+      if(!item) return;
+      e.preventDefault();
+      const action=item.getAttribute('data-ws-action');
+      closeMenu();
+      try{ await perform(action); }catch(err){ console.error(err); alert(err.message||String(err)); }
     });
+    document.addEventListener('click', (e)=>{ if(!isOpen()) return; const inside = (menu && menu.contains(e.target)) || (btn && btn.contains(e.target)); if(!inside) closeMenu(); });
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenu(); });
   });
 })();
 
