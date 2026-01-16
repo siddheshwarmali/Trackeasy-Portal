@@ -1,5 +1,9 @@
-{
-  "name": "vercel-github-db-app",
+ {
+   {
+   "name": "vercel-githubdb-dashboard",
   "private": true,
-  "type": "commonjs"
+  "engines": {
+    "node": "18.x"
+    "node": "24.x"
+  }
 }
