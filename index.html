@@ -128,6 +128,19 @@
         <div id="tw-userpill" class="mt-1 text-sm font-semibold text-slate-900">Checking login…</div>
       </div>
 
+      <!-- Navigation -->
+      <div class="p-2">
+        <div class="px-2 pt-2 pb-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Navigation</div>
+        <button type="button" onclick="twNav('build')" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-slate-50">
+          <span class="text-base">🛠️</span><span>Build</span>
+        </button>
+        <button type="button" onclick="twNav('run')" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-slate-50">
+          <span class="text-base">▶️</span><span>Run</span>
+        </button>
+      </div>
+
+      
+
       <!-- Account -->
       <div class="p-2 border-t border-slate-100">
         <div class="px-2 pt-2 pb-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Account</div>
@@ -186,7 +199,14 @@
                     <i data-lucide="activity" class="w-6 h-6 mr-2 text-blue-600"></i>
                     Executive View
                 </h2>
-                
+                <div class=\"hidden\"><div class="flex bg-gray-100 p-1 rounded-lg">
+                    <button id="tab-build" onclick="switchTab('build')" class="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all bg-white text-blue-600 shadow-sm">
+                        <i data-lucide="hammer" class="w-4 h-4"></i><span>Build</span>
+                    </button>
+                    <button id="tab-run" onclick="switchTab('run')" class="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all text-gray-600 hover:text-gray-900">
+                        <i data-lucide="play" class="w-4 h-4"></i><span>Run</span>
+                    </button>
+                </div></div>
             </div>
 
             <!-- BUILD TAB CONTENT -->
@@ -1373,8 +1393,8 @@ function switchTab(t){
   if(run) run.classList.toggle('hidden', t!=='run');
   const tb = document.getElementById('tab-build');
   const tr = document.getElementById('tab-run');
-  if(tb) tb.className = t==='build' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600";
-  if(tr) tr.className = t==='run' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600";
+  if(tb) tb.className = t==='build' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900";
+  if(tr) tr.className = t==='run' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900";
 }
         
         function toggleTrackerDetails() {
