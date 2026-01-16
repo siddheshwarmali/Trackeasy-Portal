@@ -1,99 +1,105 @@
+const { getFile, putFile } = require('../lib/github');
+const { parseCookies, verifyToken, hashPassword } = require('../lib/auth');
 
-const { verify, parseCookies, json, readJson, hashPassword } = require('./_lib/auth');
-const { readJsonFile, ghPutFile } = require('./_lib/github');
+const USERS_PATH = process.env.GITHUB_USERS_FILE || 'data/users.json';
 
-const USERS_FILE = process.env.GITHUB_USERS_FILE || 'data/users.json';
-function normUserId(u){ return String(u||'').trim(); }
+function json(res, code, data) {
+  res.statusCode = code;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(data));
+}
 
-function getSession(req){
-  const secret = process.env.AUTH_SECRET || 'dev-secret-change-me';
+async function requireAdmin(req) {
   const cookies = parseCookies(req);
-  return verify(cookies.tw_session, secret);
+  const payload = verifyToken(cookies.tw_session);
+  if (!payload) throw new Error('Unauthenticated');
+  if (payload.role !== 'admin') throw new Error('Forbidden');
+  return payload;
 }
 
-async function loadUsers(){
-  const data = await readJsonFile(USERS_FILE);
-  if (data && typeof data === 'object' && Array.isArray(data.users)) return data;
-  return { users: [] };
-}
-
-async function saveUsers(data, actor){
-  const payload = { users: data.users || [], updatedAt: new Date().toISOString(), updatedBy: actor || 'admin' };
-  await ghPutFile(USERS_FILE, JSON.stringify(payload, null, 2), 'Update users');
+async function readUsers() {
+  const file = await getFile(USERS_PATH);
+  let users = [];
+  let sha = file?.sha;
+  if (file?.text) {
+    try {
+      users = JSON.parse(file.text).users || [];
+    } catch {
+      users = [];
+    }
+  }
+  return { users, sha };
 }
 
 module.exports = async (req, res) => {
   try {
-    const session = getSession(req);
-    if (!session) return json(res, 401, { error: 'Not authenticated' });
-    if (session.role !== 'admin') return json(res, 403, { error: 'Forbidden' });
+    await requireAdmin(req);
 
     if (req.method === 'GET') {
-      const data = await loadUsers();
-      const users = (data.users || []).map(u => ({ userId: u.userId, role: u.role || 'viewer', updatedAt: u.updatedAt || null }));
-      return json(res, 200, { users });
+      const { users } = await readUsers();
+      return json(res, 200, {
+        users: users.map((u) => ({ userId: u.userId, role: u.role, updatedAt: u.updatedAt })),
+      });
     }
 
-    if (req.method === 'POST') {
-      const body = await readJson(req);
-      const userId = normUserId(body.userId);
-      const password = String(body.password || '');
-      const role = String(body.role || 'viewer').toLowerCase();
-      if (!userId) return json(res, 400, { error: 'userId required' });
-      if (!password) return json(res, 400, { error: 'password required' });
-      if (!['admin','creator','viewer'].includes(role)) return json(res, 400, { error: 'invalid role' });
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const { users, sha } = await readUsers();
 
-      const data = await loadUsers();
-      const now = new Date().toISOString();
-      const existing = (data.users || []).find(u => normUserId(u.userId) === userId);
-      const pass = hashPassword(password);
-      if (existing) {
-        existing.role = role;
-        existing.pass = pass;
-        existing.updatedAt = now;
-      } else {
-        (data.users = data.users || []).push({ userId, role, pass, createdAt: now, updatedAt: now });
+        if (req.method === 'POST') {
+          const { userId, password, role } = data;
+          if (!userId || !password) return json(res, 400, { error: 'userId/password required' });
+
+          const idx = users.findIndex((u) => u.userId === userId);
+          const rec = {
+            userId,
+            role: role || 'viewer',
+            passwordHash: hashPassword(password),
+            updatedAt: new Date().toISOString(),
+          };
+
+          if (idx >= 0) users[idx] = { ...users[idx], ...rec };
+          else users.push(rec);
+
+          await putFile(USERS_PATH, JSON.stringify({ users }, null, 2), 'Upsert user', sha);
+          return json(res, 200, { ok: true });
+        }
+
+        if (req.method === 'PUT') {
+          const { userId, role, password } = data;
+          if (!userId) return json(res, 400, { error: 'userId required' });
+
+          const idx = users.findIndex((u) => u.userId === userId);
+          if (idx < 0) return json(res, 404, { error: 'User not found' });
+
+          if (role) users[idx].role = role;
+          if (password) users[idx].passwordHash = hashPassword(password);
+          users[idx].updatedAt = new Date().toISOString();
+
+          await putFile(USERS_PATH, JSON.stringify({ users }, null, 2), 'Update user', sha);
+          return json(res, 200, { ok: true });
+        }
+
+        if (req.method === 'DELETE') {
+          const { userId } = data;
+          if (!userId) return json(res, 400, { error: 'userId required' });
+
+          const next = users.filter((u) => u.userId !== userId);
+          await putFile(USERS_PATH, JSON.stringify({ users: next }, null, 2), 'Delete user', sha);
+          return json(res, 200, { ok: true });
+        }
+
+        return json(res, 405, { error: 'Method not allowed' });
+      } catch (e) {
+        return json(res, 500, { error: e.message });
       }
-      await saveUsers(data, session.userId);
-      return json(res, 200, { ok: true });
-    }
-
-    if (req.method === 'PUT') {
-      const body = await readJson(req);
-      const userId = normUserId(body.userId);
-      if (!userId) return json(res, 400, { error: 'userId required' });
-      const data = await loadUsers();
-      const u = (data.users || []).find(x => normUserId(x.userId) === userId);
-      if (!u) return json(res, 404, { error: 'user not found' });
-      const now = new Date().toISOString();
-      if (body.role) {
-        const role = String(body.role).toLowerCase();
-        if (!['admin','creator','viewer'].includes(role)) return json(res, 400, { error: 'invalid role' });
-        u.role = role;
-      }
-      if (body.password) {
-        u.pass = hashPassword(String(body.password));
-      }
-      u.updatedAt = now;
-      await saveUsers(data, session.userId);
-      return json(res, 200, { ok: true });
-    }
-
-    if (req.method === 'DELETE') {
-      const body = await readJson(req);
-      const userId = normUserId(body.userId);
-      if (!userId) return json(res, 400, { error: 'userId required' });
-      if (userId === (process.env.ADMIN_USER || 'admin')) return json(res, 400, { error: 'cannot delete bootstrap admin' });
-      const data = await loadUsers();
-      data.users = (data.users || []).filter(u => normUserId(u.userId) !== userId);
-      await saveUsers(data, session.userId);
-      return json(res, 200, { ok: true });
-    }
-
-    return json(res, 405, { error: 'Method not allowed' });
-
+    });
   } catch (e) {
-    console.error(e);
-    return json(res, 500, { error: e.message || String(e) });
+    const msg = e.message || 'Error';
+    const code = msg === 'Forbidden' ? 403 : msg === 'Unauthenticated' ? 401 : 500;
+    return json(res, code, { error: msg });
   }
 };
