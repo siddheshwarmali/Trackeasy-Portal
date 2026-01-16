@@ -66,9 +66,7 @@ function setCookie(res, value, maxAgeSeconds = 60 * 60 * 12) {
     'SameSite=Lax',
     `Max-Age=${maxAgeSeconds}`,
     secure ? 'Secure' : null,
-  ]
-    .filter(Boolean)
-    .join('; ');
+  ].filter(Boolean).join('; ');
   res.setHeader('Set-Cookie', cookie);
 }
 
@@ -81,9 +79,7 @@ function clearCookie(res) {
     'SameSite=Lax',
     'Max-Age=0',
     secure ? 'Secure' : null,
-  ]
-    .filter(Boolean)
-    .join('; ');
+  ].filter(Boolean).join('; ');
   res.setHeader('Set-Cookie', cookie);
 }
 
