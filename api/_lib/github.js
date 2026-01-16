@@ -1,11 +1,7 @@
 const API = 'https://api.github.com';
 
-function b64encode(str) {
-  return Buffer.from(str, 'utf8').toString('base64');
-}
-function b64decode(b64) {
-  return Buffer.from(b64, 'base64').toString('utf8');
-}
+function b64encode(str) { return Buffer.from(str, 'utf8').toString('base64'); }
+function b64decode(b64) { return Buffer.from(b64, 'base64').toString('utf8'); }
 
 function ghHeaders() {
   const token = process.env.GITHUB_TOKEN;
@@ -13,7 +9,7 @@ function ghHeaders() {
   return {
     Authorization: `token ${token}`,
     Accept: 'application/vnd.github+json',
-    'User-Agent': 'vercel-github-db',
+    'User-Agent': 'trackwisy-login-fix',
   };
 }
 
@@ -25,13 +21,13 @@ function repoBase() {
   return { owner, repo, branch };
 }
 
-async function ghFetch(path, opt = {}) {
-  const res = await fetch(path, { ...opt, headers: { ...ghHeaders(), ...(opt.headers || {}) } });
+async function ghFetch(url, opt = {}) {
+  const res = await fetch(url, { ...opt, headers: { ...ghHeaders(), ...(opt.headers || {}) } });
   const text = await res.text();
-  let json;
-  try { json = JSON.parse(text); } catch { json = { error: text }; }
-  if (!res.ok) throw new Error(json.message || json.error || `GitHub API HTTP ${res.status}`);
-  return json;
+  let j;
+  try { j = JSON.parse(text); } catch { j = { error: text }; }
+  if (!res.ok) throw new Error(j.message || j.error || `GitHub API HTTP ${res.status}`);
+  return j;
 }
 
 async function getFile(filePath) {
@@ -53,21 +49,7 @@ async function putFile(filePath, text, message, sha) {
   const url = `${API}/repos/${owner}/${repo}/contents/${encodeURIComponent(filePath)}`;
   const body = { message: message || `Update ${filePath}`, content: b64encode(text), branch };
   if (sha) body.sha = sha;
-  return await ghFetch(url, { method: 'PUT', body: JSON.stringify(body) });
+  return ghFetch(url, { method: 'PUT', body: JSON.stringify(body) });
 }
 
-async function deleteFile(filePath, sha, message) {
-  const { owner, repo, branch } = repoBase();
-  const url = `${API}/repos/${owner}/${repo}/contents/${encodeURIComponent(filePath)}`;
-  const body = { message: message || `Delete ${filePath}`, sha, branch };
-  return await ghFetch(url, { method: 'DELETE', body: JSON.stringify(body) });
-}
-
-async function listDir(dirPath) {
-  const { owner, repo, branch } = repoBase();
-  const url = `${API}/repos/${owner}/${repo}/contents/${encodeURIComponent(dirPath)}?ref=${encodeURIComponent(branch)}`;
-  const data = await ghFetch(url, { method: 'GET' });
-  return Array.isArray(data) ? data : [];
-}
-
-module.exports = { getFile, putFile, deleteFile, listDir };
+module.exports = { getFile, putFile };
