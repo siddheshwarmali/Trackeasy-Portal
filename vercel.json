@@ -1,12 +1,8 @@
 {
-  "name": "executive-dashboard-vercel",
+  {
+  "name": "vercel-githubdb-dashboard",
   "private": true,
-  "version": "24.0.0",
-  "scripts": {
-    "dev": "vercel dev",
-    "deploy": "vercel deploy --prod"
-  },
-  "devDependencies": {
-    "vercel": "^34.0.0"
+  "engines": {
+    "node": "24.x"
   }
 }
