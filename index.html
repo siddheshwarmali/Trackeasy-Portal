@@ -139,7 +139,26 @@
         </button>
       </div>
 
-      
+      <!-- Workspace -->
+      <div class="p-2 border-t border-slate-100">
+        <div class="px-2 pt-2 pb-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Workspace</div>
+        <div class="px-2 py-2">
+          <select id="tw-ws-select" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="twSelectWorkspace(this.value)">
+            <option value="">Loading…</option>
+          </select>
+          <div class="mt-1 text-[11px] text-slate-500" id="tw-ws-indicator"> </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 px-2 pb-2">
+          <button type="button" onclick="twWsAction('new')" class="px-3 py-2 rounded-xl text-sm bg-blue-600 text-white hover:bg-blue-700">New</button>
+          <button type="button" onclick="twWsAction('rename')" class="px-3 py-2 rounded-xl text-sm bg-slate-100 hover:bg-slate-200">Rename</button>
+          <button type="button" onclick="twWsAction('save')" class="px-3 py-2 rounded-xl text-sm bg-green-600 text-white hover:bg-green-700">Save</button>
+          <button type="button" onclick="twWsAction('delete')" class="px-3 py-2 rounded-xl text-sm bg-red-50 text-red-700 border border-red-200 hover:bg-red-100">Delete</button>
+          <button type="button" onclick="twWsAction('export')" class="px-3 py-2 rounded-xl text-sm bg-slate-100 hover:bg-slate-200">Export</button>
+          <button type="button" onclick="twWsAction('exportExcel')" class="px-3 py-2 rounded-xl text-sm bg-slate-100 hover:bg-slate-200">Export Excel</button>
+          <button type="button" onclick="twWsAction('import')" class="col-span-2 px-3 py-2 rounded-xl text-sm bg-slate-100 hover:bg-slate-200">Import</button>
+        </div>
+      </div>
 
       <!-- Account -->
       <div class="p-2 border-t border-slate-100">
@@ -169,19 +188,19 @@
 
                 
 <div class="flex flex-wrap gap-2 items-center relative">
-  <button type="button" onclick="wsActionsToggle()" class="px-3 py-2 text-sm bg-slate-100 text-slate-800 rounded-md hover:bg-slate-200 flex items-center gap-2">
+  <button id="ws-actions-btn" type="button" class="px-3 py-2 text-sm bg-slate-100 text-slate-800 rounded-md hover:bg-slate-200 flex items-center gap-2">
         <span class="text-base">⚙️</span><span>Actions</span>
       </button>
       <!-- Workspace Actions Dropdown (local menu) -->
       <div id="ws-actions-menu" class="hidden absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-40">
-        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" onclick="wsSafeCall(\"wsOpenCreateModal\")">New</button>
-        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" onclick="wsSafeCall(\"wsRenameCurrent\")">Rename</button>
-        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" onclick="wsSafeCall(\"wsSaveNow\", {prompt:true})">Save</button>
-        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" onclick="wsSafeCall(\"wsDeleteCurrent\")">Delete</button>
+        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" data-ws-action="new">New</button>
+        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" data-ws-action="rename">Rename</button>
+        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" data-ws-action="save">Save</button>
+        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" data-ws-action="delete">Delete</button>
         <div class="h-px bg-slate-100"></div>
-        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" onclick="wsSafeCall(\"wsExportCurrent\")">Export</button>
-        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" onclick="wsSafeCall(\"wsExportCurrentExcel\")">Export Excel</button>
-        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" onclick="document.getElementById('ws-import-file')?.click()">Import</button>
+        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" data-ws-action="export">Export</button>
+        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" data-ws-action="exportExcel">Export Excel</button>
+        <button type="button" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50" data-ws-action="import">Import</button>
       </div>
   <input type="file" id="ws-import-file" accept="application/json" class="hidden" />
 </div>
@@ -199,14 +218,7 @@
                     <i data-lucide="activity" class="w-6 h-6 mr-2 text-blue-600"></i>
                     Executive View
                 </h2>
-                <div class=\"hidden\"><div class="flex bg-gray-100 p-1 rounded-lg">
-                    <button id="tab-build" onclick="switchTab('build')" class="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all bg-white text-blue-600 shadow-sm">
-                        <i data-lucide="hammer" class="w-4 h-4"></i><span>Build</span>
-                    </button>
-                    <button id="tab-run" onclick="switchTab('run')" class="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all text-gray-600 hover:text-gray-900">
-                        <i data-lucide="play" class="w-4 h-4"></i><span>Run</span>
-                    </button>
-                </div></div>
+
             </div>
 
             <!-- BUILD TAB CONTENT -->
@@ -1028,34 +1040,6 @@
     menu.classList.toggle('hidden', !next);
   }
 
-// ---- Workspace Actions (local dropdown) ----
-function wsActionsToggle(force){
-  const menu = document.getElementById('ws-actions-menu');
-  if(!menu) return;
-  const next = (typeof force==='boolean') ? force : menu.classList.contains('hidden');
-  menu.classList.toggle('hidden', !next);
-}
-function wsSafeCall(fnName, arg){
-  try{
-    wsActionsToggle(false);
-    const fn = window[fnName];
-    if(typeof fn !== 'function') throw new Error(fnName + ' is not available (workspace manager not initialized yet).');
-    return (typeof arg === 'undefined') ? fn() : fn(arg);
-  }catch(e){
-    console.error(e);
-    alert(e.message || String(e));
-  }
-}
-window.addEventListener('click', (e)=>{
-  const menu = document.getElementById('ws-actions-menu');
-  if(!menu) return;
-  const btn = e.target && e.target.closest && e.target.closest('button[onclick^="wsActionsToggle"]');
-  const inside = menu.contains(e.target) || btn;
-  if(!inside) wsActionsToggle(false);
-});
-window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') wsActionsToggle(false); });
-
-
   function twNav(tab) {
     try {
       if (typeof switchTab === 'function') switchTab(tab);
@@ -1199,6 +1183,60 @@ window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') wsActionsToggle(f
   });
 </script>
 
+<script>
+
+// ---- Workspace Actions (local dropdown) ----
+function wsActionsToggle(force){
+  const menu = document.getElementById('ws-actions-menu');
+  if(!menu) return;
+  const next = (typeof force==='boolean') ? force : menu.classList.contains('hidden');
+  menu.classList.toggle('hidden', !next);
+}
+function wsSafeCall(fnName, arg){
+  const fn = window[fnName];
+  if(typeof fn !== 'function') throw new Error(fnName + ' is not available (workspace manager not initialized yet).');
+  return (typeof arg === 'undefined') ? fn() : fn(arg);
+}
+function wsPerformAction(action){
+  // Prefer calling workspace-manager functions directly.
+  if(action==='new') return wsSafeCall('wsOpenCreateModal');
+  if(action==='rename') return wsSafeCall('wsRenameCurrent');
+  if(action==='save') return wsSafeCall('wsSaveNow', {prompt:true});
+  if(action==='delete') return wsSafeCall('wsDeleteCurrent');
+  if(action==='export') return wsSafeCall('wsExportCurrent');
+  if(action==='exportExcel') return wsSafeCall('wsExportCurrentExcel');
+  if(action==='import') {
+    const inp = document.getElementById('ws-import-file');
+    if(inp) inp.click();
+    return;
+  }
+}
+// Bind once DOM is ready
+window.addEventListener('DOMContentLoaded', ()=>{
+  const btn = document.getElementById('ws-actions-btn');
+  const menu = document.getElementById('ws-actions-menu');
+  if(btn){
+    btn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); wsActionsToggle(); });
+  }
+  if(menu){
+    menu.addEventListener('click', (e)=>{
+      const t = e.target;
+      const b = t && t.closest ? t.closest('[data-ws-action]') : null;
+      if(!b) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const action = b.getAttribute('data-ws-action');
+      wsActionsToggle(false);
+      try{ wsPerformAction(action); }
+      catch(err){ console.error(err); alert(err.message || String(err)); }
+    });
+  }
+  // close on outside click / ESC
+  document.addEventListener('click', ()=>wsActionsToggle(false));
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') wsActionsToggle(false); });
+});
+
+</script>
 </body>
 </html>
 </template>
@@ -1391,6 +1429,7 @@ function switchTab(t){
   const run = document.getElementById('content-run');
   if(build) build.classList.toggle('hidden', t!=='build');
   if(run) run.classList.toggle('hidden', t!=='run');
+  // Tabs may be removed from UI; guard against null
   const tb = document.getElementById('tab-build');
   const tr = document.getElementById('tab-run');
   if(tb) tb.className = t==='build' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900";
@@ -3648,5 +3687,59 @@ async function wsModalPrimary() {
   });
 </script>
 
+<script>
+
+// ---- Workspace Actions (local dropdown) ----
+function wsActionsToggle(force){
+  const menu = document.getElementById('ws-actions-menu');
+  if(!menu) return;
+  const next = (typeof force==='boolean') ? force : menu.classList.contains('hidden');
+  menu.classList.toggle('hidden', !next);
+}
+function wsSafeCall(fnName, arg){
+  const fn = window[fnName];
+  if(typeof fn !== 'function') throw new Error(fnName + ' is not available (workspace manager not initialized yet).');
+  return (typeof arg === 'undefined') ? fn() : fn(arg);
+}
+function wsPerformAction(action){
+  // Prefer calling workspace-manager functions directly.
+  if(action==='new') return wsSafeCall('wsOpenCreateModal');
+  if(action==='rename') return wsSafeCall('wsRenameCurrent');
+  if(action==='save') return wsSafeCall('wsSaveNow', {prompt:true});
+  if(action==='delete') return wsSafeCall('wsDeleteCurrent');
+  if(action==='export') return wsSafeCall('wsExportCurrent');
+  if(action==='exportExcel') return wsSafeCall('wsExportCurrentExcel');
+  if(action==='import') {
+    const inp = document.getElementById('ws-import-file');
+    if(inp) inp.click();
+    return;
+  }
+}
+// Bind once DOM is ready
+window.addEventListener('DOMContentLoaded', ()=>{
+  const btn = document.getElementById('ws-actions-btn');
+  const menu = document.getElementById('ws-actions-menu');
+  if(btn){
+    btn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); wsActionsToggle(); });
+  }
+  if(menu){
+    menu.addEventListener('click', (e)=>{
+      const t = e.target;
+      const b = t && t.closest ? t.closest('[data-ws-action]') : null;
+      if(!b) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const action = b.getAttribute('data-ws-action');
+      wsActionsToggle(false);
+      try{ wsPerformAction(action); }
+      catch(err){ console.error(err); alert(err.message || String(err)); }
+    });
+  }
+  // close on outside click / ESC
+  document.addEventListener('click', ()=>wsActionsToggle(false));
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') wsActionsToggle(false); });
+});
+
+</script>
 </body>
 </html>
