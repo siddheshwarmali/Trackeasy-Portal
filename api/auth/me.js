@@ -1,20 +1,21 @@
+const { parseCookies, verifyToken } = require('../../lib/auth');
 
-const { verify, parseCookies, json } = require('../_lib/auth');
+function json(res, code, data) {
+  res.statusCode = code;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(data));
+}
 
 module.exports = async (req, res) => {
-  const secret = process.env.AUTH_SECRET || 'dev-secret-change-me';
   const cookies = parseCookies(req);
   const token = cookies.tw_session;
-  const session = verify(token, secret);
-  if (!session) {
-    return json(res, 200, { authenticated: false });
-  }
-  // Only return non-sensitive fields
+  const payload = verifyToken(token);
+
+  if (!payload) return json(res, 200, { authenticated: false });
+
   return json(res, 200, {
     authenticated: true,
-    role: session.role,
-    userId: session.userId || null,
-    email: session.email || null,
-    name: session.name || null,
+    userId: payload.userId,
+    role: payload.role,
   });
 };
