@@ -12,7 +12,7 @@
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-xl font-bold text-slate-900">User Manager</h1>
-        <p class="text-sm text-slate-500">Admin only • Create users with User ID + Password and assign role</p>
+        <p class="text-sm text-slate-500">Admin only • Create users with User ID + Password and role</p>
       </div>
       <div class="flex items-center gap-3">
         <span id="me" class="text-xs text-slate-500"></span>
@@ -27,11 +27,11 @@
     <div class="mt-6 grid md:grid-cols-3 gap-4 items-end">
       <div>
         <label class="text-xs text-slate-600">User ID</label>
-        <input id="newUserId" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. john.smith" />
+        <input id="newUserId" class="w-full border rounded-lg px-3 py-2 text-sm" />
       </div>
       <div>
         <label class="text-xs text-slate-600">Password</label>
-        <input id="newPassword" type="password" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Set initial password" />
+        <input id="newPassword" type="password" class="w-full border rounded-lg px-3 py-2 text-sm" />
       </div>
       <div>
         <label class="text-xs text-slate-600">Role</label>
@@ -61,7 +61,6 @@
           <tbody id="userRows" class="divide-y"></tbody>
         </table>
       </div>
-      <p class="mt-2 text-xs text-slate-500">Note: passwords are stored as salted hashes (PBKDF2). Admin can reset passwords.</p>
     </div>
   </div>
 
@@ -98,39 +97,30 @@
     `;
     tr.querySelector('[data-role]').value = u.role;
     tr.querySelector('[data-save]').onclick = async ()=>{
-      try{
-        const role = tr.querySelector('[data-role]').value;
-        await apiJson('/api/users', { method:'PUT', body: JSON.stringify({ userId: u.userId, role }) });
-        showOk('Role updated');
-        await load();
-      } catch(e){ showErr(e.message); }
+      try{ await apiJson('/api/users', { method:'PUT', body: JSON.stringify({ userId:u.userId, role: tr.querySelector('[data-role]').value })}); showOk('Role updated'); await load(); }
+      catch(e){ showErr(e.message); }
     };
     tr.querySelector('[data-reset]').onclick = async ()=>{
       const pw = prompt('Enter new password for ' + u.userId);
       if(!pw) return;
-      try{
-        await apiJson('/api/users', { method:'PUT', body: JSON.stringify({ userId: u.userId, password: pw }) });
-        showOk('Password reset');
-      } catch(e){ showErr(e.message); }
+      try{ await apiJson('/api/users', { method:'PUT', body: JSON.stringify({ userId:u.userId, password: pw })}); showOk('Password reset'); }
+      catch(e){ showErr(e.message); }
     };
     tr.querySelector('[data-del]').onclick = async ()=>{
       if(!confirm('Delete user ' + u.userId + '?')) return;
-      try{
-        await apiJson('/api/users', { method:'DELETE', body: JSON.stringify({ userId: u.userId }) });
-        showOk('User deleted');
-        await load();
-      } catch(e){ showErr(e.message); }
+      try{ await apiJson('/api/users', { method:'DELETE', body: JSON.stringify({ userId:u.userId })}); showOk('User deleted'); await load(); }
+      catch(e){ showErr(e.message); }
     };
     return tr;
   }
 
   async function load(){
-    const me = await apiJson('/api/auth/me');
+    const me = await apiJson('/api/auth/me', { method:'GET' });
     if(!me.authenticated){ location.href='/login.html?next=' + encodeURIComponent(location.pathname); return; }
     document.getElementById('me').textContent = (me.userId||'User') + ' • ' + (me.role||'');
     if((me.role||'') !== 'admin') { showErr('Forbidden: Admin only'); return; }
 
-    const data = await apiJson('/api/users');
+    const data = await apiJson('/api/users', { method:'GET' });
     const tbody=document.getElementById('userRows');
     tbody.innerHTML='';
     (data.users||[]).forEach(u=>tbody.appendChild(rowTemplate(u)));
@@ -143,13 +133,13 @@
     if(!userId) return showErr('User ID is required');
     if(!password) return showErr('Password is required');
     try{
-      await apiJson('/api/users', { method:'POST', body: JSON.stringify({ userId, password, role }) });
+      await apiJson('/api/users', { method:'POST', body: JSON.stringify({ userId, password, role })});
       showOk('User saved');
       document.getElementById('newUserId').value='';
       document.getElementById('newPassword').value='';
       document.getElementById('newRole').value='viewer';
       await load();
-    } catch(e){ showErr(e.message); }
+    }catch(e){ showErr(e.message); }
   };
 
   document.getElementById('logout').onclick = async ()=>{ try{ await apiJson('/api/auth/logout',{method:'POST'});}catch(e){} location.href='/login.html'; };
