@@ -22,11 +22,7 @@ async function readUsers() {
   let users = [];
   let sha = file?.sha;
   if (file?.text) {
-    try {
-      users = JSON.parse(file.text).users || [];
-    } catch {
-      users = [];
-    }
+    try { users = JSON.parse(file.text).users || []; } catch { users = []; }
   }
   return { users, sha };
 }
@@ -37,13 +33,11 @@ module.exports = async (req, res) => {
 
     if (req.method === 'GET') {
       const { users } = await readUsers();
-      return json(res, 200, {
-        users: users.map((u) => ({ userId: u.userId, role: u.role, updatedAt: u.updatedAt })),
-      });
+      return json(res, 200, { users: users.map(u => ({ userId: u.userId, role: u.role, updatedAt: u.updatedAt })) });
     }
 
     let body = '';
-    req.on('data', (chunk) => (body += chunk));
+    req.on('data', chunk => (body += chunk));
     req.on('end', async () => {
       try {
         const data = JSON.parse(body || '{}');
@@ -53,16 +47,9 @@ module.exports = async (req, res) => {
           const { userId, password, role } = data;
           if (!userId || !password) return json(res, 400, { error: 'userId/password required' });
 
-          const idx = users.findIndex((u) => u.userId === userId);
-          const rec = {
-            userId,
-            role: role || 'viewer',
-            passwordHash: hashPassword(password),
-            updatedAt: new Date().toISOString(),
-          };
-
-          if (idx >= 0) users[idx] = { ...users[idx], ...rec };
-          else users.push(rec);
+          const idx = users.findIndex(u => u.userId === userId);
+          const rec = { userId, role: role || 'viewer', passwordHash: hashPassword(password), updatedAt: new Date().toISOString() };
+          if (idx >= 0) users[idx] = { ...users[idx], ...rec }; else users.push(rec);
 
           await putFile(USERS_PATH, JSON.stringify({ users }, null, 2), 'Upsert user', sha);
           return json(res, 200, { ok: true });
@@ -72,7 +59,7 @@ module.exports = async (req, res) => {
           const { userId, role, password } = data;
           if (!userId) return json(res, 400, { error: 'userId required' });
 
-          const idx = users.findIndex((u) => u.userId === userId);
+          const idx = users.findIndex(u => u.userId === userId);
           if (idx < 0) return json(res, 404, { error: 'User not found' });
 
           if (role) users[idx].role = role;
@@ -87,14 +74,14 @@ module.exports = async (req, res) => {
           const { userId } = data;
           if (!userId) return json(res, 400, { error: 'userId required' });
 
-          const next = users.filter((u) => u.userId !== userId);
+          const next = users.filter(u => u.userId !== userId);
           await putFile(USERS_PATH, JSON.stringify({ users: next }, null, 2), 'Delete user', sha);
           return json(res, 200, { ok: true });
         }
 
         return json(res, 405, { error: 'Method not allowed' });
       } catch (e) {
-        return json(res, 500, { error: e.message });
+        return json(res, 500, { error: (e && e.message) ? e.message : String(e) });
       }
     });
   } catch (e) {
