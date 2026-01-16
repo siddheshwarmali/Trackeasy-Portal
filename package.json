@@ -1,10 +1,7 @@
 {
-  "name": "trackwisy-dashboard",
-  "version": "1.0.0",
+  "name": "vercel-githubdb-dashboard",
   "private": true,
-  "description": "Static Executive Dashboard + Vercel Serverless APIs (auth + GitHub state)",
-  "scripts": {
-    "dev": "vercel dev",
-    "start": "vercel dev"
+  "engines": {
+    "node": "18.x"
   }
 }
