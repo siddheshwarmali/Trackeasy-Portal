@@ -167,50 +167,9 @@
 
                 
 <div class="flex flex-wrap gap-2 items-center">
-  
-<div class="relative">
-  <button id="ws-actions-btn" type="button"
-    class="inline-flex items-center gap-2 px-3 py-2 text-sm bg-slate-100 text-slate-800 rounded-md hover:bg-slate-200 active:scale-[0.99] transition"
-    aria-haspopup="menu" aria-controls="ws-actions-menu" aria-expanded="false">
-    <span class="text-base">⚙️</span>
-    <span class="font-medium">Actions</span>
-    <svg class="w-4 h-4 text-slate-600 ml-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
-    </svg>
+  <button type="button" onclick="twMenuOpen(true)" class="px-3 py-2 text-sm bg-slate-100 text-slate-800 rounded-md hover:bg-slate-200 flex items-center gap-2">
+    <span class="text-base">⚙️</span><span>Actions</span>
   </button>
-
-  <!-- Mobile backdrop -->
-  <div id="ws-actions-backdrop" class="hidden fixed inset-0 bg-slate-950/30 z-30" aria-hidden="true"></div>
-
-  <!-- Menu: bottom-sheet on mobile, popover on >=sm -->
-  <div id="ws-actions-menu"
-    class="hidden z-40 fixed inset-x-4 bottom-4 sm:inset-auto sm:absolute sm:right-0 sm:top-full sm:mt-2 w-[calc(100%-2rem)] sm:w-64 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden"
-    role="menu" aria-label="Workspace actions">
-
-    <div class="sm:hidden px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-      <div class="text-sm font-semibold text-slate-800">Workspace Actions</div>
-      <button type="button" class="text-slate-500 hover:text-slate-800" data-ws-close aria-label="Close">✕</button>
-    </div>
-
-    <div class="p-2">
-      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="new" role="menuitem">New workspace</button>
-      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="rename" role="menuitem">Rename</button>
-      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="save" role="menuitem">Save</button>
-      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-red-50 active:bg-red-100 text-red-700" data-ws-action="delete" role="menuitem">Delete</button>
-
-      <div class="my-2 h-px bg-slate-100"></div>
-
-      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="export" role="menuitem">Export (JSON)</button>
-      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="exportExcel" role="menuitem">Export (Excel)</button>
-      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="import" role="menuitem">Import</button>
-    </div>
-
-    <div class="sm:hidden px-4 py-3 border-t border-slate-100 bg-slate-50">
-      <button type="button" class="w-full px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium" data-ws-close>Done</button>
-    </div>
-  </div>
-</div>
-
   <input type="file" id="ws-import-file" accept="application/json" class="hidden" />
 </div>
 
@@ -227,14 +186,7 @@
                     <i data-lucide="activity" class="w-6 h-6 mr-2 text-blue-600"></i>
                     Executive View
                 </h2>
-                <div class=\"hidden\"><div class="flex bg-gray-100 p-1 rounded-lg">
-                    <button id="tab-build" onclick="switchTab('build')" class="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all bg-white text-blue-600 shadow-sm">
-                        <i data-lucide="hammer" class="w-4 h-4"></i><span>Build</span>
-                    </button>
-                    <button id="tab-run" onclick="switchTab('run')" class="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all text-gray-600 hover:text-gray-900">
-                        <i data-lucide="play" class="w-4 h-4"></i><span>Run</span>
-                    </button>
-                </div></div>
+
             </div>
 
             <!-- BUILD TAB CONTENT -->
@@ -1199,93 +1151,6 @@
   });
 </script>
 
-<script>
-
-// ===== Workspace Actions Menu (responsive) =====
-(function(){
-  function qs(id){ return document.getElementById(id); }
-  function openMenu(){
-    const menu = qs('ws-actions-menu');
-    const btn = qs('ws-actions-btn');
-    const back = qs('ws-actions-backdrop');
-    if(!menu || !btn) return;
-    menu.classList.remove('hidden');
-    btn.setAttribute('aria-expanded','true');
-    // Backdrop only on mobile (menu is fixed)
-    if(back){ back.classList.remove('hidden'); }
-    // focus first item
-    const first = menu.querySelector('[data-ws-action]');
-    if(first) setTimeout(()=>first.focus(), 0);
-  }
-  function closeMenu(){
-    const menu = qs('ws-actions-menu');
-    const btn = qs('ws-actions-btn');
-    const back = qs('ws-actions-backdrop');
-    if(menu) menu.classList.add('hidden');
-    if(back) back.classList.add('hidden');
-    if(btn) btn.setAttribute('aria-expanded','false');
-  }
-  function safeCall(fnName, arg){
-    const fn = window[fnName];
-    if(typeof fn !== 'function') throw new Error(fnName + ' is not available (workspace manager not initialized yet).');
-    return (typeof arg === 'undefined') ? fn() : fn(arg);
-  }
-  function perform(action){
-    if(action==='new') return safeCall('wsOpenCreateModal');
-    if(action==='rename') return safeCall('wsRenameCurrent');
-    if(action==='save') return safeCall('wsSaveNow', {prompt:true});
-    if(action==='delete') return safeCall('wsDeleteCurrent');
-    if(action==='export') return safeCall('wsExportCurrent');
-    if(action==='exportExcel') return safeCall('wsExportCurrentExcel');
-    if(action==='import'){
-      const inp = qs('ws-import-file');
-      if(inp) inp.click();
-      return;
-    }
-  }
-
-  window.addEventListener('DOMContentLoaded', ()=>{
-    const btn = qs('ws-actions-btn');
-    const menu = qs('ws-actions-menu');
-    const back = qs('ws-actions-backdrop');
-    if(btn){
-      btn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation();
-        const expanded = btn.getAttribute('aria-expanded')==='true';
-        expanded ? closeMenu() : openMenu();
-      });
-    }
-    if(back){
-      back.addEventListener('click', ()=>closeMenu());
-    }
-    if(menu){
-      // handle action clicks
-      menu.addEventListener('click', (e)=>{
-        const t = e.target;
-        const closeBtn = t && t.closest ? t.closest('[data-ws-close]') : null;
-        if(closeBtn){ e.preventDefault(); closeMenu(); return; }
-        const item = t && t.closest ? t.closest('[data-ws-action]') : null;
-        if(!item) return;
-        e.preventDefault();
-        const action = item.getAttribute('data-ws-action');
-        closeMenu();
-        try{ perform(action); }
-        catch(err){ console.error(err); alert(err.message || String(err)); }
-      });
-      // keyboard
-      menu.addEventListener('keydown', (e)=>{
-        if(e.key==='Escape'){ e.preventDefault(); closeMenu(); btn && btn.focus(); }
-      });
-    }
-    // close when clicking outside (desktop popover case)
-    document.addEventListener('click', (e)=>{
-      if(!menu || menu.classList.contains('hidden')) return;
-      const inside = menu.contains(e.target) || (btn && btn.contains(e.target));
-      if(!inside) closeMenu();
-    });
-  });
-})();
-
-</script>
 </body>
 </html>
 </template>
@@ -1473,12 +1338,16 @@
         }
 
         // --- DASHBOARD TABS ---
-        function switchTab(t) {
-            document.getElementById('content-build').classList.toggle('hidden', t!=='build');
-            document.getElementById('content-run').classList.toggle('hidden', t!=='run');
-            document.getElementById('tab-build').className = t==='build' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600";
-            document.getElementById('tab-run').className = t==='run' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600";
-        }
+        function switchTab(t){
+  const build = document.getElementById('content-build');
+  const run = document.getElementById('content-run');
+  if(build) build.classList.toggle('hidden', t!=='build');
+  if(run) run.classList.toggle('hidden', t!=='run');
+  const tb = document.getElementById('tab-build');
+  const tr = document.getElementById('tab-run');
+  if(tb) tb.className = t==='build' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900";
+  if(tr) tr.className = t==='run' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900";
+}
         
         function toggleTrackerDetails() {
             showTrackerDetails = !showTrackerDetails;
@@ -3465,16 +3334,36 @@ async function wsInitWorkspaceManager() {
         console.error(e);
     }
 
-    // pick dash from URL else first
+    // pick dash: URL param wins, else last opened workspace, else first available
     const urlId = gh6GetDashFromUrl();
     const store = wsLoadStore();
+    const lastId = localStorage.getItem(WS_LAST_KEY);
     const first = dashboards[0] ? dashboards[0].id : (wsList()[0] ? wsList()[0].id : null);
-    wsCurrentId = (urlId && store.workspaces[urlId]) ? urlId : first;
+
+    wsCurrentId = (urlId && store.workspaces[urlId])
+        ? urlId
+        : ((lastId && store.workspaces[lastId]) ? lastId : first);
 
     if (wsCurrentId) {
         const sel = document.getElementById('ws-select');
         if (sel) sel.value = wsCurrentId;
-        await wsSelectWorkspace(wsCurrentId, { saveCurrent:false });
+
+        try {
+            await wsSelectWorkspace(wsCurrentId, { saveCurrent:false });
+        } catch (e) {
+            console.error('Workspace load failed. Falling back to cached state.', e);
+            const cached = store.workspaces && store.workspaces[wsCurrentId] && store.workspaces[wsCurrentId].state;
+            if (cached) {
+                try {
+                    wsApplyState(cached);
+                    if (typeof renderAll === 'function') renderAll();
+                } catch (e2) {
+                    console.error('Cached state apply failed.', e2);
+                }
+            } else {
+                throw e;
+            }
+        }
     } else {
         // none exists: create default
         await wsCreateWorkspace('Default', null);
@@ -3731,92 +3620,5 @@ async function wsModalPrimary() {
   });
 </script>
 
-<script>
-
-// ===== Workspace Actions Menu (responsive) =====
-(function(){
-  function qs(id){ return document.getElementById(id); }
-  function openMenu(){
-    const menu = qs('ws-actions-menu');
-    const btn = qs('ws-actions-btn');
-    const back = qs('ws-actions-backdrop');
-    if(!menu || !btn) return;
-    menu.classList.remove('hidden');
-    btn.setAttribute('aria-expanded','true');
-    // Backdrop only on mobile (menu is fixed)
-    if(back){ back.classList.remove('hidden'); }
-    // focus first item
-    const first = menu.querySelector('[data-ws-action]');
-    if(first) setTimeout(()=>first.focus(), 0);
-  }
-  function closeMenu(){
-    const menu = qs('ws-actions-menu');
-    const btn = qs('ws-actions-btn');
-    const back = qs('ws-actions-backdrop');
-    if(menu) menu.classList.add('hidden');
-    if(back) back.classList.add('hidden');
-    if(btn) btn.setAttribute('aria-expanded','false');
-  }
-  function safeCall(fnName, arg){
-    const fn = window[fnName];
-    if(typeof fn !== 'function') throw new Error(fnName + ' is not available (workspace manager not initialized yet).');
-    return (typeof arg === 'undefined') ? fn() : fn(arg);
-  }
-  function perform(action){
-    if(action==='new') return safeCall('wsOpenCreateModal');
-    if(action==='rename') return safeCall('wsRenameCurrent');
-    if(action==='save') return safeCall('wsSaveNow', {prompt:true});
-    if(action==='delete') return safeCall('wsDeleteCurrent');
-    if(action==='export') return safeCall('wsExportCurrent');
-    if(action==='exportExcel') return safeCall('wsExportCurrentExcel');
-    if(action==='import'){
-      const inp = qs('ws-import-file');
-      if(inp) inp.click();
-      return;
-    }
-  }
-
-  window.addEventListener('DOMContentLoaded', ()=>{
-    const btn = qs('ws-actions-btn');
-    const menu = qs('ws-actions-menu');
-    const back = qs('ws-actions-backdrop');
-    if(btn){
-      btn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation();
-        const expanded = btn.getAttribute('aria-expanded')==='true';
-        expanded ? closeMenu() : openMenu();
-      });
-    }
-    if(back){
-      back.addEventListener('click', ()=>closeMenu());
-    }
-    if(menu){
-      // handle action clicks
-      menu.addEventListener('click', (e)=>{
-        const t = e.target;
-        const closeBtn = t && t.closest ? t.closest('[data-ws-close]') : null;
-        if(closeBtn){ e.preventDefault(); closeMenu(); return; }
-        const item = t && t.closest ? t.closest('[data-ws-action]') : null;
-        if(!item) return;
-        e.preventDefault();
-        const action = item.getAttribute('data-ws-action');
-        closeMenu();
-        try{ perform(action); }
-        catch(err){ console.error(err); alert(err.message || String(err)); }
-      });
-      // keyboard
-      menu.addEventListener('keydown', (e)=>{
-        if(e.key==='Escape'){ e.preventDefault(); closeMenu(); btn && btn.focus(); }
-      });
-    }
-    // close when clicking outside (desktop popover case)
-    document.addEventListener('click', (e)=>{
-      if(!menu || menu.classList.contains('hidden')) return;
-      const inside = menu.contains(e.target) || (btn && btn.contains(e.target));
-      if(!inside) closeMenu();
-    });
-  });
-})();
-
-</script>
 </body>
 </html>
