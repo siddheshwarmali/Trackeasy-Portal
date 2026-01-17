@@ -1,7 +1,10 @@
 {
-  "name": "vercel-github-db-app",
+  "name": "trackwisy-dashboard",
+  "version": "1.0.0",
   "private": true,
+  "type": "commonjs",
+  "description": "TrackWisy dashboard with robust auth/login/user management",
   "engines": {
-    "node": "18.x"
+    "node": "20.x"
   }
 }
