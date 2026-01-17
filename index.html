@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Executive Dashboard</title>
+<!-- TW_BUILD_STAMP: 2026-01-16 15:28 IST (rename-db-fix) -->
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -88,38 +89,58 @@
 </head>
 <body class="text-gray-800">
 
+<!-- App Loader Overlay -->
+<div id="tw-app-loader" class="fixed inset-0 z-[99999] bg-slate-950/50 backdrop-blur-sm hidden">
+  <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(520px,92vw)] bg-white rounded-2xl shadow-2xl border border-slate-200 p-5">
+    <div class="flex items-center gap-3">
+      <div class="w-6 h-6 rounded-full border-4 border-slate-200 border-t-blue-600 animate-spin"></div>
+      <div>
+        <div class="text-sm font-semibold text-slate-900" id="tw-loader-title">Loading dashboard…</div>
+        <div class="text-xs text-slate-500 mt-0.5" id="tw-loader-sub">Preparing workspace</div>
+      </div>
+    </div>
+    <div class="mt-4">
+      <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div id="tw-loader-bar" class="h-2 bg-blue-600 w-[15%] transition-all duration-300"></div>
+      </div>
+      <div class="mt-2 text-[11px] text-slate-500" id="tw-loader-hint">Tip: Use menu → Workspace → Save to persist to GitHub.</div>
+    </div>
+  </div>
+</div>
+
+
     <div class="max-w-7xl mx-auto p-6 min-h-screen">
         <!-- Header -->
-        <div class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 mb-2">Executive Dashboard</h1>
-            <p class="text-gray-600">Comprehensive project and performance overview</p>
-        </div>
 
 
-<!-- Top Bar (Hamburger: Build/Run + Account) -->
+<!-- Top Bar (Advanced Hamburger) -->
 <div class="mb-4 flex items-center justify-end">
   <div class="relative">
-    <button id="tw-menu-btn" type="button" class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 shadow-sm hover:bg-slate-50" aria-label="Open menu">
+    <button id="tw-menu-btn" type="button"
+      class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white border border-slate-200 shadow-sm hover:bg-slate-50"
+      aria-label="Open menu">
       <span class="sr-only">Menu</span>
       <span class="text-slate-700 text-xl leading-none">☰</span>
     </button>
 
-    <div id="tw-menu" class="hidden absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50">
+    <div id="tw-menu" class="hidden absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50">
       <div class="px-4 py-3 border-b border-slate-100 bg-slate-50">
         <div class="text-xs text-slate-500">Signed in as</div>
         <div id="tw-userpill" class="mt-1 text-sm font-semibold text-slate-900">Checking login…</div>
       </div>
 
+      <!-- Navigation -->
       <div class="p-2">
         <div class="px-2 pt-2 pb-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Navigation</div>
-        <button type="button" data-tw-nav="build" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-slate-50">
+        <button type="button" onclick="twNav('build')" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-slate-50">
           <span class="text-base">🛠️</span><span>Build</span>
         </button>
-        <button type="button" data-tw-nav="run" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-slate-50">
+        <button type="button" onclick="twNav('run')" class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-slate-50">
           <span class="text-base">▶️</span><span>Run</span>
         </button>
       </div>
 
+      <!-- Account -->
       <div class="p-2 border-t border-slate-100">
         <div class="px-2 pt-2 pb-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Account</div>
         <a id="tw-usermgr" href="/user-manager.html" class="hidden w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100">
@@ -145,38 +166,36 @@
                     <span id="ws-saved-indicator" class="text-xs text-gray-500 ml-2">Not saved</span>
                 </div>
 
-                <div class="flex flex-wrap gap-2 items-center">
-                    <button type="button" onclick="wsOpenCreateModal()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
-                        <i data-lucide="plus" class="w-4 h-4"></i><span>New</span>
-                    </button>
-                    <button type="button" onclick="wsRenameCurrent()" class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2">
-                        <i data-lucide="pencil" class="w-4 h-4"></i><span>Rename</span>
-                    </button>
-<button type="button" onclick="wsDeleteCurrent()" class="px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 flex items-center gap-2">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i><span>Delete</span>
-                    </button>
+                
+<div class="flex flex-wrap gap-2 items-center">
+  
+<div class="relative">
+  <button id="ws-actions-btn" type="button"
+    class="px-3 py-2 text-sm bg-slate-100 text-slate-800 rounded-md hover:bg-slate-200 flex items-center gap-2 active:scale-[0.99] transition"
+    aria-haspopup="menu" aria-controls="ws-actions-menu" aria-expanded="false">
+    <span class="text-base">⚙️</span><span>Actions</span>
+    <svg class="w-4 h-4 text-slate-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
+  </button>
+  <div id="ws-actions-backdrop" class="hidden fixed inset-0 bg-slate-950/30 z-30" aria-hidden="true"></div>
+  <div id="ws-actions-menu" class="hidden z-40 fixed inset-x-4 bottom-4 sm:inset-auto sm:absolute sm:right-0 sm:top-full sm:mt-2 w-[calc(100%-2rem)] sm:w-64 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden" role="menu" aria-label="Workspace actions">
+    <div class="sm:hidden px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between"><div class="text-sm font-semibold text-slate-800">Workspace Actions</div><button type="button" class="text-slate-500 hover:text-slate-800" data-ws-close aria-label="Close">✕</button></div>
+    <div class="p-2">
+      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="new" role="menuitem">New workspace</button>
+      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="rename" role="menuitem">Rename</button>
+      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="save" role="menuitem">Save</button>
+      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-red-50 active:bg-red-100 text-red-700" data-ws-action="delete" role="menuitem">Delete</button>
+      <div class="my-2 h-px bg-slate-100"></div>
+      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="export" role="menuitem">Export (JSON)</button>
+      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="exportExcel" role="menuitem">Export (Excel)</button>
+      <button type="button" class="w-full text-left px-3 py-3 sm:py-2 rounded-xl text-sm hover:bg-slate-50 active:bg-slate-100" data-ws-action="import" role="menuitem">Import</button>
+    </div>
+    <div class="sm:hidden px-4 py-3 border-t border-slate-100 bg-slate-50"><button type="button" class="w-full px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium" data-ws-close>Done</button></div>
+  </div>
+</div>
 
-                    <span class="mx-1 w-px h-8 bg-gray-200"></span>
+  <input type="file" id="ws-import-file" accept="application/json" class="hidden" />
+</div>
 
-                    <button type="button" onclick="wsSaveNow()" class="px-3 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2">
-                        <i data-lucide="save" class="w-4 h-4"></i><span>Save</span>
-                    </button>
-                    <button type="button" onclick="wsExportCurrent()" class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2">
-                        <i data-lucide="download" class="w-4 h-4"></i><span>Export</span>
-                    </button>
-<button type="button" onclick="wsExportCurrentExcel()" class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2">
-                        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span>Export Excel</span>
-                    </button>
-
-                    <label class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2 cursor-pointer">
-                        <i data-lucide="upload" class="w-4 h-4"></i><span>Import</span>
-                        <input type="file" id="ws-import-file" accept="application/json" class="hidden" />
-                    </label>
-
-                    <button type="button" onclick="wsClearLocalStorage()" class="px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 flex items-center gap-2" title="Clears ONLY workspace data stored in this browser">
-                        <i data-lucide="database" class="w-4 h-4"></i><span>Clear Storage</span>
-                    </button>
-                </div>
             </div>
             <p class="text-xs text-gray-500 mt-2">
                 Workspaces are saved locally in this browser. Use <span class="font-medium">Export</span> to back up or share, and <span class="font-medium">Import</span> to restore.
@@ -190,14 +209,7 @@
                     <i data-lucide="activity" class="w-6 h-6 mr-2 text-blue-600"></i>
                     Executive View
                 </h2>
-                <div class=\"hidden\"><div class="flex bg-gray-100 p-1 rounded-lg">
-                    <button id="tab-build" onclick="switchTab('build')" class="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all bg-white text-blue-600 shadow-sm">
-                        <i data-lucide="hammer" class="w-4 h-4"></i><span>Build</span>
-                    </button>
-                    <button id="tab-run" onclick="switchTab('run')" class="flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all text-gray-600 hover:text-gray-900">
-                        <i data-lucide="play" class="w-4 h-4"></i><span>Run</span>
-                    </button>
-                </div></div>
+
             </div>
 
             <!-- BUILD TAB CONTENT -->
@@ -549,11 +561,7 @@
     <div id="modal-milestone" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md animate-fade-in">
             <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-gray-800" id="milestone-modal-title">Add New Milestone</h3><button onclick="closeModal('modal-milestone')"><i data-lucide="x" class="w-6 h-6 text-gray-500"></i></button></div>
-            <div class="space-y-4"><input type="hidden" id="ms-index"><div><label class="block text-sm font-medium text-gray-700 mb-1">Activity Name *</label><input type="text" id="ms-phase" class="w-full border border-gray-300 rounded-lg p-2"></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700 mb-1">Planned Start *</label><input type="date" id="ms-start" class="w-full border border-gray-300 rounded-lg p-2"></div><div><label class="block text-sm font-medium text-gray-700 mb-1">Planned End *</label><input type="date" id="ms-end" class="w-full border border-gray-300 rounded-lg p-2"></div></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700 mb-1">Actual Start</label><input type="date" id="ms-act-start" class="w-full border border-gray-300 rounded-lg p-2"></div><div><label class="block text-sm font-medium text-gray-700 mb-1">Actual End</label><input type="date" id="ms-act-end" class="w-full border border-gray-300 rounded-lg p-2"></div></div>
-                <div>
-                    <label class=\"block text-sm font-medium text-gray-700 mb-1\">Owner <span class=\"text-xs text-gray-400\">(optional)</span></label>
-                    <input type=\"text\" id=\"ms-owner\" class=\"w-full border border-gray-300 rounded-lg p-2\" placeholder=\"Owner name\">
-                </div><div><label class="block text-sm font-medium text-gray-700 mb-1">Remark</label><textarea id="ms-remark" class="w-full border border-gray-300 rounded-lg p-2 h-20"></textarea></div></div>
+            <div class="space-y-4"><input type="hidden" id="ms-index"><div><label class="block text-sm font-medium text-gray-700 mb-1">Activity Name *</label><input type="text" id="ms-phase" class="w-full border border-gray-300 rounded-lg p-2"></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700 mb-1">Planned Start *</label><input type="date" id="ms-start" class="w-full border border-gray-300 rounded-lg p-2"></div><div><label class="block text-sm font-medium text-gray-700 mb-1">Planned End *</label><input type="date" id="ms-end" class="w-full border border-gray-300 rounded-lg p-2"></div></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700 mb-1">Actual Start</label><input type="date" id="ms-act-start" class="w-full border border-gray-300 rounded-lg p-2"></div><div><label class="block text-sm font-medium text-gray-700 mb-1">Actual End</label><input type="date" id="ms-act-end" class="w-full border border-gray-300 rounded-lg p-2"></div></div><div><label class="block text-sm font-medium text-gray-700 mb-1">Remark</label><textarea id="ms-remark" class="w-full border border-gray-300 rounded-lg p-2 h-20"></textarea></div></div>
             <div class="flex justify-end space-x-3 mt-6"><button id="btn-delete-ms" onclick="deleteMilestone()" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium mr-auto hidden">Delete</button><button onclick="closeModal('modal-milestone')" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">Cancel</button><button onclick="saveMilestone()" class="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">Save</button></div>
         </div>
     </div>
@@ -994,139 +1002,237 @@
     </script>
 
 <script>
-// ===== Milestones + Tracker Hotfix (keeps all existing features) =====
-(function(){
-  // Helper: safe render
-  function twSafeRender(){
-    try { if (typeof renderMilestones==='function') renderMilestones(); } catch(e) {}
-    try { if (typeof renderMilestoneDetails==='function') renderMilestoneDetails(); } catch(e) {}
-    try { if (typeof renderAll==='function') renderAll(); } catch(e) {}
-  }
-
-  // 1) Override milestone detail cards to include Owner (optional)
-  const _origRenderMilestoneDetails = window.renderMilestoneDetails;
-  window.renderMilestoneDetails = function(){
-    try {
-      if (!window.showTrackerDetails) return;
-      const container = document.getElementById('milestone-cards');
-      if (!container) return;
-      container.innerHTML = (window.milestones||[]).map((m,i)=>{
-        const st = (typeof calculateStatus==='function') ? calculateStatus(m) : { tracker:'Pending', execLabel:'YTB', execColor:'text-gray-500 bg-gray-100' };
-        let badgeColor = 'bg-gray-100 text-gray-800';
-        if(st.tracker === 'On Track') badgeColor = 'bg-green-100 text-green-800 border-green-200';
-        if(st.tracker === 'Delayed') badgeColor = 'bg-red-100 text-red-800 border-red-200';
-        const ownerLine = (m && m.owner && String(m.owner).trim()) ? `<p>Owner: ${String(m.owner).trim()}</p>` : '';
-        return `
-          <div class="bg-white rounded-lg p-3 border border-gray-200 flex flex-col min-w-[160px] max-w-[180px] shadow-sm hover:border-blue-400 cursor-pointer" onclick="openMilestoneModal(${i})">
-            <p class="text-xs font-bold text-gray-800 mb-2 text-center h-8 flex items-center justify-center break-words">${m.phase||''}</p>
-            <div class="flex-1 space-y-2 mb-2">
-              <div class="bg-blue-50 p-1.5 rounded text-[10px]">
-                <p class="font-bold text-blue-700">Planned</p>
-                <p>S: ${m.startDate || '-'}</p>
-                <p>E: ${m.endDate || '-'}</p>
-              </div>
-              <div class="bg-green-50 p-1.5 rounded text-[10px]">
-                <p class="font-bold text-green-700">Actual</p>
-                <p>S: ${m.actualStartDate || '-'}</p>
-                <p>E: ${m.actualEndDate || '-'}</p>
-                ${ownerLine}
-              </div>
-            </div>
-            <div class="mb-2 px-1 border-t border-gray-50 pt-1">
-              ${m.remark ? `<div class="bg-gray-50 p-1 rounded border border-gray-100 mb-1"><p class="text-[10px] text-gray-600 line-clamp-2" title="${m.remark}">R: ${m.remark}</p></div>` : ''}
-              <div class="flex justify-between items-center">
-                <span class="text-[10px] text-gray-500 font-medium">Status:</span>
-                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${st.execColor}">${st.execLabel}</span>
-              </div>
-            </div>
-            <div class="mt-auto pt-2 border-t border-gray-100">
-              <span class="block text-center text-[10px] px-2 py-1 rounded-full font-bold border ${badgeColor}">${st.tracker}</span>
-            </div>
-          </div>`;
-      }).join('');
-    } finally {
-      try { if (window.lucide && lucide.createIcons) lucide.createIcons(); } catch(e) {}
+  // ---------- Advanced Loader ----------
+  const twLoader = {
+    show(title='Loading…', sub='Please wait', pct=15) {
+      const el = document.getElementById('tw-app-loader');
+      if (!el) return;
+      document.getElementById('tw-loader-title').textContent = title;
+      document.getElementById('tw-loader-sub').textContent = sub;
+      twLoader.pct(pct);
+      el.classList.remove('hidden');
+    },
+    hide() {
+      const el = document.getElementById('tw-app-loader');
+      if (!el) return;
+      el.classList.add('hidden');
+    },
+    pct(p) {
+      const bar = document.getElementById('tw-loader-bar');
+      if (bar) bar.style.width = Math.max(5, Math.min(100, p)) + '%';
     }
   };
 
-  // 2) First-load blank fix: re-render right after state apply
-  if (typeof window.wsApplyState === 'function') {
-    const _apply = window.wsApplyState;
-    window.wsApplyState = function(){
-      const r = _apply.apply(this, arguments);
-      requestAnimationFrame(()=>{
-        try { if (typeof renderAll==='function') renderAll(); } catch(e) {}
-      });
-      return r;
-    };
-  }
-
-  // 3) Ensure re-render after workspace switch (GitHub load)
-  if (typeof window.wsSelectWorkspace === 'function') {
-    const _sel = window.wsSelectWorkspace;
-    window.wsSelectWorkspace = async function(){
-      const res = await _sel.apply(this, arguments);
-      requestAnimationFrame(()=>{ twSafeRender(); });
-      return res;
-    };
-  }
-
-  // 4) Auto-save milestones to GitHub DB (debounced)
-  let tmr=null;
-  function saveNoPrompt(){
-    if (tmr) clearTimeout(tmr);
-    tmr=setTimeout(async ()=>{
-      try {
-        if (typeof window.wsSaveNow === 'function') {
-          // GitHub override accepts opts
-          const out = window.wsSaveNow({ prompt: false });
-          if (out && typeof out.then==='function') await out;
-        }
-      } catch(e) {
-        console.warn('Auto-save failed', e);
-      }
-    }, 1000);
-  }
-
-  // Wrap saveMilestone/deleteMilestone
-  if (typeof window.saveMilestone === 'function') {
-    const _saveMs = window.saveMilestone;
-    window.saveMilestone = function(){
-      const r = _saveMs.apply(this, arguments);
-      saveNoPrompt();
-      return r;
-    };
-  }
-  if (typeof window.deleteMilestone === 'function') {
-    const _delMs = window.deleteMilestone;
-    window.deleteMilestone = function(){
-      const r = _delMs.apply(this, arguments);
-      saveNoPrompt();
-      return r;
-    };
-  }
-
-  // 5) Hamburger wiring
-  function twMenuOpen(open){
-    const menu=document.getElementById('tw-menu');
-    if(!menu) return;
-    const next=(typeof open==='boolean')?open:menu.classList.contains('hidden');
+  // ---------- Advanced Hamburger ----------
+  function twMenuOpen(open) {
+    const menu = document.getElementById('tw-menu');
+    if (!menu) return;
+    const next = (typeof open === 'boolean') ? open : menu.classList.contains('hidden');
     menu.classList.toggle('hidden', !next);
   }
-  window.addEventListener('DOMContentLoaded', ()=>{
-    const btn=document.getElementById('tw-menu-btn');
-    const menu=document.getElementById('tw-menu');
-    if(btn) btn.addEventListener('click',(e)=>{e.stopPropagation();twMenuOpen();});
-    document.addEventListener('click',(e)=>{ if(!menu) return; const inside=menu.contains(e.target)||btn.contains(e.target); if(!inside) twMenuOpen(false); });
-    document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') twMenuOpen(false); });
-    document.querySelectorAll('[data-tw-nav]').forEach(b=>b.addEventListener('click',()=>{ try{ if(typeof switchTab==='function') switchTab(b.getAttribute('data-tw-nav')); } finally { twMenuOpen(false);} }));
 
-    // Safety: force initial render shortly after load
-    setTimeout(()=>{ twSafeRender(); }, 600);
+  function twNav(tab) {
+    try {
+      if (typeof switchTab === 'function') switchTab(tab);
+    } finally {
+      twMenuOpen(false);
+    }
+  }
+
+  // Workspace select inside hamburger mirrors main workspace select
+  function twSyncWsSelectFromMain() {
+    const main = document.getElementById('ws-select');
+    const tw = document.getElementById('tw-ws-select');
+    if (!main || !tw) return;
+    tw.innerHTML = main.innerHTML;
+    tw.value = main.value;
+    const ind = document.getElementById('tw-ws-indicator');
+    const saved = document.getElementById('ws-saved-indicator');
+    if (ind && saved) ind.textContent = saved.textContent || '';
+  }
+
+  async function twSelectWorkspace(id) {
+    try {
+      twMenuOpen(false);
+      if (!id) return;
+      if (typeof wsSelectWorkspace === 'function') {
+        twLoader.show('Loading dashboard…', 'Switching workspace', 35);
+        twLoader.pct(45);
+        await Promise.resolve(wsSelectWorkspace(id));
+        // Ensure render on first load / after switch
+        if (typeof renderAll === 'function') renderAll();
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message || String(e));
+    } finally {
+      twLoader.hide();
+      // sync selects
+      setTimeout(twSyncWsSelectFromMain, 50);
+    }
+  }
+
+  async function twWsAction(action) {
+    try {
+      twMenuOpen(false);
+      if (!action) return;
+      if (action === 'new') return wsOpenCreateModal && wsOpenCreateModal();
+      if (action === 'rename') return wsRenameCurrent && wsRenameCurrent();
+      if (action === 'delete') {
+        twLoader.show('Deleting dashboard…', 'Removing from GitHub / database', 40);
+        return await Promise.resolve(wsDeleteCurrent && wsDeleteCurrent());
+      }
+      if (action === 'save') {
+        twLoader.show('Saving dashboard…', 'Persisting to GitHub / database', 45);
+        return await Promise.resolve(wsSaveNow && wsSaveNow({ prompt: true }));
+      }
+      if (action === 'export') return wsExportCurrent && wsExportCurrent();
+      if (action === 'exportExcel') return wsExportCurrentExcel && wsExportCurrentExcel();
+      if (action === 'import') {
+        const inp = document.getElementById('ws-import-file');
+        if (inp) inp.click();
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message || String(e));
+    } finally {
+      twLoader.hide();
+      setTimeout(twSyncWsSelectFromMain, 50);
+    }
+  }
+
+  // ---------- First-load Fix + Advanced Init ----------
+  async function twInitApp() {
+    try {
+      twLoader.show('Starting…', 'Checking session', 15);
+      // Ensure auth init runs (existing twInit redirects if not logged in)
+      if (typeof twInit === 'function') {
+        await Promise.resolve(twInit());
+      }
+      twLoader.pct(30);
+
+      // Inject Run iframe content early so Run tab is ready
+      try {
+        const tmpl = document.getElementById('run-dashboard-template');
+        const iframe = document.getElementById('run-iframe');
+        if (tmpl && iframe && !iframe.srcdoc) {
+          iframe.srcdoc = tmpl.innerHTML;
+        }
+      } catch (e) {
+        console.warn('Run iframe init failed:', e);
+      }
+
+      twLoader.show('Loading dashboards…', 'Syncing workspace list', 45);
+
+      // Initialize workspace manager (some versions are async)
+      if (typeof wsInitWorkspaceManager === 'function') {
+        await Promise.resolve(wsInitWorkspaceManager());
+      }
+      twLoader.pct(70);
+
+      // Ensure first-time render happens (this fixes "loads only after switching dashboard")
+      if (typeof renderAll === 'function') {
+        renderAll();
+      }
+
+      // Sync hamburger workspace select from main select
+      setTimeout(twSyncWsSelectFromMain, 100);
+
+      // Hook main workspace select changes to keep hamburger select updated
+      const mainSel = document.getElementById('ws-select');
+      if (mainSel) {
+        mainSel.addEventListener('change', () => setTimeout(twSyncWsSelectFromMain, 50));
+      }
+
+      twLoader.show('Almost done…', 'Finalizing UI', 88);
+      // Allow browser a tick to paint
+      await new Promise(r => setTimeout(r, 150));
+      twLoader.hide();
+
+    } catch (e) {
+      console.error(e);
+      twLoader.show('Failed to load', e.message || String(e), 100);
+      // keep visible so user can read
+    }
+  }
+
+  // Close menu on outside click and Escape; open on button
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('tw-menu-btn');
+    const menu = document.getElementById('tw-menu');
+    if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); twMenuOpen(); });
+    document.addEventListener('click', (e) => {
+      if (!menu) return;
+      const inside = menu.contains(e.target) || (btn && btn.contains(e.target));
+      if (!inside) twMenuOpen(false);
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') twMenuOpen(false); });
+
+    // Start app init after DOM is ready
+    twInitApp();
   });
-})();
 </script>
 
+<script>
+
+// ===== Workspace Actions Menu (responsive) =====
+(function(){
+  function qs(id){ return document.getElementById(id); }
+  function isOpen(){ const m=qs('ws-actions-menu'); return m && !m.classList.contains('hidden'); }
+  function openMenu(){
+    const menu = qs('ws-actions-menu');
+    const btn = qs('ws-actions-btn');
+    const back = qs('ws-actions-backdrop');
+    if(!menu || !btn) return;
+    menu.classList.remove('hidden');
+    btn.setAttribute('aria-expanded','true');
+    if(back) back.classList.remove('hidden');
+  }
+  function closeMenu(){
+    const menu = qs('ws-actions-menu');
+    const btn = qs('ws-actions-btn');
+    const back = qs('ws-actions-backdrop');
+    if(menu) menu.classList.add('hidden');
+    if(back) back.classList.add('hidden');
+    if(btn) btn.setAttribute('aria-expanded','false');
+  }
+  async function perform(action){
+    if(action==='new') return window.wsOpenCreateModal && window.wsOpenCreateModal();
+    if(action==='rename') return window.wsRenameCurrent && window.wsRenameCurrent();
+    if(action==='save') return window.wsSaveNow && window.wsSaveNow({prompt:true});
+    if(action==='delete') return window.wsDeleteCurrent && window.wsDeleteCurrent();
+    if(action==='export') return window.wsExportCurrent && window.wsExportCurrent();
+    if(action==='exportExcel') return window.wsExportCurrentExcel && window.wsExportCurrentExcel();
+    if(action==='import'){
+      const inp = qs('ws-import-file');
+      if(inp) inp.click();
+      return;
+    }
+  }
+  window.addEventListener('DOMContentLoaded', ()=>{
+    const btn = qs('ws-actions-btn');
+    const menu = qs('ws-actions-menu');
+    const back = qs('ws-actions-backdrop');
+    if(btn) btn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); isOpen()?closeMenu():openMenu(); });
+    if(back) back.addEventListener('click', closeMenu);
+    if(menu) menu.addEventListener('click', async (e)=>{
+      const t=e.target;
+      const c=t && t.closest ? t.closest('[data-ws-close]') : null;
+      if(c){ e.preventDefault(); closeMenu(); return; }
+      const item=t && t.closest ? t.closest('[data-ws-action]') : null;
+      if(!item) return;
+      e.preventDefault();
+      const action=item.getAttribute('data-ws-action');
+      closeMenu();
+      try{ await perform(action); }catch(err){ console.error(err); alert(err.message||String(err)); }
+    });
+    document.addEventListener('click', (e)=>{ if(!isOpen()) return; const inside = (menu && menu.contains(e.target)) || (btn && btn.contains(e.target)); if(!inside) closeMenu(); });
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenu(); });
+  });
+})();
+
+</script>
 </body>
 </html>
 </template>
@@ -1314,12 +1420,16 @@
         }
 
         // --- DASHBOARD TABS ---
-        function switchTab(t) {
-            document.getElementById('content-build').classList.toggle('hidden', t!=='build');
-            document.getElementById('content-run').classList.toggle('hidden', t!=='run');
-            document.getElementById('tab-build').className = t==='build' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600";
-            document.getElementById('tab-run').className = t==='run' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600";
-        }
+        function switchTab(t){
+  const build = document.getElementById('content-build');
+  const run = document.getElementById('content-run');
+  if(build) build.classList.toggle('hidden', t!=='build');
+  if(run) run.classList.toggle('hidden', t!=='run');
+  const tb = document.getElementById('tab-build');
+  const tr = document.getElementById('tab-run');
+  if(tb) tb.className = t==='build' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900";
+  if(tr) tr.className = t==='run' ? "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium bg-white text-blue-600 shadow-sm" : "flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900";
+}
         
         function toggleTrackerDetails() {
             showTrackerDetails = !showTrackerDetails;
@@ -1346,7 +1456,7 @@
                             endDate: parseXlsDate(r['End Date']||r.endDate),
                             actualStartDate: parseXlsDate(r['Actual Start Date']||r.actualStartDate), 
                             actualEndDate: parseXlsDate(r['Actual End Date']||r.actualEndDate), 
-                            remark: r.Remark || r.remark || '', owner: r.Owner || r.owner || ''
+                            remark: r.Remark||r.remark||''
                         }));
                         renderMilestones();
                     } else if(type === 'stories') { mapStories(j); }
@@ -2086,12 +2196,11 @@ function renderBlockers() {
             const isEdit = idx !== null; document.getElementById('milestone-modal-title').textContent = isEdit ? 'Edit Milestone' : 'Add New';
             document.getElementById('ms-index').value = isEdit ? idx : '';
             document.getElementById('btn-delete-ms').classList.toggle('hidden', !isEdit);
-            if(isEdit) { const m = milestones[idx]; document.getElementById('ms-phase').value = m.phase; document.getElementById('ms-start').value = m.startDate; document.getElementById('ms-end').value = m.endDate; document.getElementById('ms-act-start').value = m.actualStartDate; document.getElementById('ms-act-end').value = m.actualEndDate;
-        try { document.getElementById('ms-owner').value = m.owner || ''; } catch(e) {} document.getElementById('ms-remark').value = m.remark; } 
-            else { ['ms-phase','ms-start','ms-end','ms-act-start','ms-act-end','ms-remark','ms-owner'].forEach(id => document.getElementById(id).value = ''); }
+            if(isEdit) { const m = milestones[idx]; document.getElementById('ms-phase').value = m.phase; document.getElementById('ms-start').value = m.startDate; document.getElementById('ms-end').value = m.endDate; document.getElementById('ms-act-start').value = m.actualStartDate; document.getElementById('ms-act-end').value = m.actualEndDate; document.getElementById('ms-remark').value = m.remark; } 
+            else { ['ms-phase','ms-start','ms-end','ms-act-start','ms-act-end','ms-remark'].forEach(id => document.getElementById(id).value = ''); }
             document.getElementById('modal-milestone').classList.add('open');
         }
-        function saveMilestone() { const idx = document.getElementById('ms-index').value; const item = { phase: document.getElementById('ms-phase').value, startDate: document.getElementById('ms-start').value, endDate: document.getElementById('ms-end').value, actualStartDate: document.getElementById('ms-act-start').value, actualEndDate: document.getElementById('ms-act-end').value, remark: document.getElementById('ms-remark').value, owner: (document.getElementById('ms-owner') ? document.getElementById('ms-owner').value : '') }; if(!item.phase) return alert('Activity Name required'); if(idx === '') milestones.push(item); else milestones[idx] = item; closeModal('modal-milestone'); renderMilestones(); }
+        function saveMilestone() { const idx = document.getElementById('ms-index').value; const item = { phase: document.getElementById('ms-phase').value, startDate: document.getElementById('ms-start').value, endDate: document.getElementById('ms-end').value, actualStartDate: document.getElementById('ms-act-start').value, actualEndDate: document.getElementById('ms-act-end').value, remark: document.getElementById('ms-remark').value }; if(!item.phase) return alert('Activity Name required'); if(idx === '') milestones.push(item); else milestones[idx] = item; closeModal('modal-milestone'); renderMilestones(); }
         function deleteMilestone() { const idx = document.getElementById('ms-index').value; if(idx !== '') { milestones.splice(idx, 1); closeModal('modal-milestone'); renderMilestones(); } }
         function openDisciplineModal() { switchDiscTab('L1'); document.getElementById('modal-discipline').classList.add('open'); }
         function switchDiscTab(tab) { discModalTab = tab; document.getElementById('tab-l1-btn').className = `px-4 py-2 text-sm font-medium border-b-2 ${tab==='L1'?'border-teal-600 text-teal-600':'border-transparent text-gray-500'}`; document.getElementById('tab-l2-btn').className = `px-4 py-2 text-sm font-medium border-b-2 ${tab==='L2'?'border-teal-600 text-teal-600':'border-transparent text-gray-500'}`; const content = document.getElementById('disc-tab-content'); if (tab === 'L1') { content.innerHTML = `<table class="min-w-full divide-y divide-gray-200 mb-6"><thead class="bg-gray-50"><tr><th>Discipline</th><th>Total</th><th>Open</th><th>Closed</th><th>Hold</th><th>Grand Total</th></tr></thead><tbody>${taskDisciplines.map((d,i) => `<tr><td class="p-2 font-medium">${d.discipline}</td><td class="p-2"><input type="number" class="w-full border rounded p-1 text-center" value="${d.totalTasks}" oninput="updateL1(${i},'totalTasks',this.value)"></td><td class="p-2"><input type="number" class="w-full border rounded p-1 text-center" value="${d.openTasks}" oninput="updateL1(${i},'openTasks',this.value)"></td><td class="p-2"><input type="number" class="w-full border rounded p-1 text-center" value="${d.closedTasks}" oninput="updateL1(${i},'closedTasks',this.value)"></td><td class="p-2"><input type="number" class="w-full border rounded p-1 text-center" value="${d.holdTasks}" oninput="updateL1(${i},'holdTasks',this.value)"></td><td class="p-2"><input type="number" id="grand-total-${i}" class="w-full border rounded p-1 text-center font-bold bg-gray-100 text-gray-600 cursor-not-allowed" value="${d.grandTotal}" readonly></td></tr>`).join('')}</tbody></table>`; } else { renderL2EditMode(); } }
@@ -2283,9 +2392,12 @@ function renderBlockers() {
         }
 
         function wsGetSelectedTab() {
-            const buildBtn = document.getElementById('tab-build');
-            if (buildBtn && buildBtn.classList.contains('bg-white')) return 'build';
-            return 'run';
+            // Determine active tab by visibility (works even if tab buttons are removed from UI)
+            const runEl = document.getElementById('content-run');
+            const buildEl = document.getElementById('content-build');
+            if (runEl && !runEl.classList.contains('hidden')) return 'run';
+            if (buildEl && !buildEl.classList.contains('hidden')) return 'build';
+            return 'build';
         }
 
         function wsGetReportVisibility() {
@@ -2400,7 +2512,10 @@ function renderBlockers() {
 
                 // Apply report visibility + selected tab
                 wsApplyReportVisibility(ex.reportVisibility);
-                try { if (ex.selectedTab && typeof switchTab === 'function') switchTab(ex.selectedTab); } catch (e) {}
+                try {
+                    const t = (ex && ex.selectedTab) ? String(ex.selectedTab) : '';
+                    if (t && typeof switchTab === 'function') switchTab(t === 'run' ? 'run' : 'build');
+                } catch (e) {}
 
                 // Restore ADO config (non-sensitive)
                 try {
@@ -2582,6 +2697,8 @@ function renderBlockers() {
                 const newId = wsCreateWorkspace(name);
                 wsCurrentId = newId;
                 wsRefreshSelect();
+                // Persist rename to GitHub so it survives refresh
+                if (wsModalTargetId === wsCurrentId) { wsSaveNowToGitHub().catch(e=>console.error(e)); }
                 wsSetIndicator(`Created: ${name}`, true);
             } else if (wsModalMode === 'rename') {
                 const store = wsLoadStore();
@@ -2591,6 +2708,8 @@ function renderBlockers() {
                 wsSaveStore(store);
                 wsRefreshSelect();
                 wsSetIndicator(`Renamed: ${name}`, true);
+                // Persist rename to GitHub/database so it survives refresh
+                if (typeof wsPersistRenameToGitHub === 'function') { wsPersistRenameToGitHub(wsModalTargetId, name).catch(e=>console.error(e)); }
             } else if (wsModalMode === 'duplicate') {
                 const store = wsLoadStore();
                 if (!wsModalTargetId || !store.workspaces[wsModalTargetId]) return;
@@ -2843,8 +2962,47 @@ async function gh6Request(method, params={}, body=null) {
 
 const gh6List = () => gh6Request('GET', { list: 1 });
 const gh6Get = (id) => gh6Request('GET', { dash: id });
-const gh6Save = (id, state) => gh6Request('POST', { dash: id }, { state });
+const gh6Save = (id, state) => gh6Request('POST', { dash: id }, { state, name: (state && state.__meta && state.__meta.name) ? state.__meta.name : null });
 const gh6Delete = (id) => gh6Request('DELETE', { dash: id });
+
+// Persist workspace rename to GitHub/database by updating stored state.__meta.name
+async function wsPersistRenameToGitHub(workspaceId, newName){
+  if(!workspaceId || !newName) return;
+  try{
+    gh6Overlay(true, 'Saving workspace name...');
+    const store = wsLoadStore();
+    let state = store.workspaces && store.workspaces[workspaceId] ? store.workspaces[workspaceId].state : null;
+    if(!state){
+      const res = await gh6Get(workspaceId);
+      state = (res && res.state) ? res.state : (res && res.data && res.data.state ? res.data.state : null);
+    }
+    if(!state){
+      state = wsGetState();
+    }
+    state.__meta = state.__meta || {};
+    state.__meta.name = newName;
+    await gh6Save(workspaceId, state);
+    try{
+      const st = wsLoadStore();
+      if(st.workspaces && st.workspaces[workspaceId]){
+        st.workspaces[workspaceId].name = newName;
+        st.workspaces[workspaceId].state = gh6SanitizeState(state);
+        st.workspaces[workspaceId].updatedAt = new Date().toISOString();
+        wsSaveStore(st);
+        wsRefreshSelect();
+      }
+    }catch(e){}
+    try{ await gh6SyncListIntoStore(); }catch(e){}
+    wsSetIndicator('Renamed ✓ ' + new Date().toLocaleTimeString(), true);
+  }catch(e){
+    console.error(e);
+    wsSetIndicator('Rename save failed (see console)', false);
+    alert(e.message || String(e));
+  }finally{
+    gh6Overlay(false);
+  }
+}
+
 
 // Prevent race conditions when switching dashboards quickly
 let gh6LoadSeq = 0;
@@ -3066,19 +3224,24 @@ function wsClearLocalStorage() { alert('Clear Storage is removed.'); }
 // Load list from GitHub and fill workspace store (keeps existing UI)
 async function gh6SyncListIntoStore() {
     const store = wsLoadStore();
+    const prev = store.workspaces || {};
     const data = await gh6List();
     const list = Array.isArray(data.dashboards) ? data.dashboards : [];
-    // keep existing store object but replace workspaces
-    store.workspaces = {};
+
+    // merge (do NOT wipe names if backend doesn't provide them)
+    const next = {};
     list.forEach(d => {
-        store.workspaces[d.id] = {
+        const prevW = prev[d.id] || {};
+        const name = d.name || prevW.name || d.id;
+        next[d.id] = {
             id: d.id,
-            name: d.name || d.id,
-            createdAt: d.createdAt || d.updatedAt || new Date().toISOString(),
+            name,
+            createdAt: d.createdAt || prevW.createdAt || d.updatedAt || new Date().toISOString(),
             updatedAt: d.updatedAt || new Date().toISOString(),
-            state: null
+            state: prevW.state || null
         };
     });
+    store.workspaces = next;
     wsSaveStore(store);
     wsRefreshSelect();
     return list;
@@ -3401,138 +3564,236 @@ async function wsModalPrimary() {
 
 
 <script>
-// ===== Milestones + Tracker Hotfix (keeps all existing features) =====
-(function(){
-  // Helper: safe render
-  function twSafeRender(){
-    try { if (typeof renderMilestones==='function') renderMilestones(); } catch(e) {}
-    try { if (typeof renderMilestoneDetails==='function') renderMilestoneDetails(); } catch(e) {}
-    try { if (typeof renderAll==='function') renderAll(); } catch(e) {}
-  }
-
-  // 1) Override milestone detail cards to include Owner (optional)
-  const _origRenderMilestoneDetails = window.renderMilestoneDetails;
-  window.renderMilestoneDetails = function(){
-    try {
-      if (!window.showTrackerDetails) return;
-      const container = document.getElementById('milestone-cards');
-      if (!container) return;
-      container.innerHTML = (window.milestones||[]).map((m,i)=>{
-        const st = (typeof calculateStatus==='function') ? calculateStatus(m) : { tracker:'Pending', execLabel:'YTB', execColor:'text-gray-500 bg-gray-100' };
-        let badgeColor = 'bg-gray-100 text-gray-800';
-        if(st.tracker === 'On Track') badgeColor = 'bg-green-100 text-green-800 border-green-200';
-        if(st.tracker === 'Delayed') badgeColor = 'bg-red-100 text-red-800 border-red-200';
-        const ownerLine = (m && m.owner && String(m.owner).trim()) ? `<p>Owner: ${String(m.owner).trim()}</p>` : '';
-        return `
-          <div class="bg-white rounded-lg p-3 border border-gray-200 flex flex-col min-w-[160px] max-w-[180px] shadow-sm hover:border-blue-400 cursor-pointer" onclick="openMilestoneModal(${i})">
-            <p class="text-xs font-bold text-gray-800 mb-2 text-center h-8 flex items-center justify-center break-words">${m.phase||''}</p>
-            <div class="flex-1 space-y-2 mb-2">
-              <div class="bg-blue-50 p-1.5 rounded text-[10px]">
-                <p class="font-bold text-blue-700">Planned</p>
-                <p>S: ${m.startDate || '-'}</p>
-                <p>E: ${m.endDate || '-'}</p>
-              </div>
-              <div class="bg-green-50 p-1.5 rounded text-[10px]">
-                <p class="font-bold text-green-700">Actual</p>
-                <p>S: ${m.actualStartDate || '-'}</p>
-                <p>E: ${m.actualEndDate || '-'}</p>
-                ${ownerLine}
-              </div>
-            </div>
-            <div class="mb-2 px-1 border-t border-gray-50 pt-1">
-              ${m.remark ? `<div class="bg-gray-50 p-1 rounded border border-gray-100 mb-1"><p class="text-[10px] text-gray-600 line-clamp-2" title="${m.remark}">R: ${m.remark}</p></div>` : ''}
-              <div class="flex justify-between items-center">
-                <span class="text-[10px] text-gray-500 font-medium">Status:</span>
-                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${st.execColor}">${st.execLabel}</span>
-              </div>
-            </div>
-            <div class="mt-auto pt-2 border-t border-gray-100">
-              <span class="block text-center text-[10px] px-2 py-1 rounded-full font-bold border ${badgeColor}">${st.tracker}</span>
-            </div>
-          </div>`;
-      }).join('');
-    } finally {
-      try { if (window.lucide && lucide.createIcons) lucide.createIcons(); } catch(e) {}
+  // ---------- Advanced Loader ----------
+  const twLoader = {
+    show(title='Loading…', sub='Please wait', pct=15) {
+      const el = document.getElementById('tw-app-loader');
+      if (!el) return;
+      document.getElementById('tw-loader-title').textContent = title;
+      document.getElementById('tw-loader-sub').textContent = sub;
+      twLoader.pct(pct);
+      el.classList.remove('hidden');
+    },
+    hide() {
+      const el = document.getElementById('tw-app-loader');
+      if (!el) return;
+      el.classList.add('hidden');
+    },
+    pct(p) {
+      const bar = document.getElementById('tw-loader-bar');
+      if (bar) bar.style.width = Math.max(5, Math.min(100, p)) + '%';
     }
   };
 
-  // 2) First-load blank fix: re-render right after state apply
-  if (typeof window.wsApplyState === 'function') {
-    const _apply = window.wsApplyState;
-    window.wsApplyState = function(){
-      const r = _apply.apply(this, arguments);
-      requestAnimationFrame(()=>{
-        try { if (typeof renderAll==='function') renderAll(); } catch(e) {}
-      });
-      return r;
-    };
-  }
-
-  // 3) Ensure re-render after workspace switch (GitHub load)
-  if (typeof window.wsSelectWorkspace === 'function') {
-    const _sel = window.wsSelectWorkspace;
-    window.wsSelectWorkspace = async function(){
-      const res = await _sel.apply(this, arguments);
-      requestAnimationFrame(()=>{ twSafeRender(); });
-      return res;
-    };
-  }
-
-  // 4) Auto-save milestones to GitHub DB (debounced)
-  let tmr=null;
-  function saveNoPrompt(){
-    if (tmr) clearTimeout(tmr);
-    tmr=setTimeout(async ()=>{
-      try {
-        if (typeof window.wsSaveNow === 'function') {
-          // GitHub override accepts opts
-          const out = window.wsSaveNow({ prompt: false });
-          if (out && typeof out.then==='function') await out;
-        }
-      } catch(e) {
-        console.warn('Auto-save failed', e);
-      }
-    }, 1000);
-  }
-
-  // Wrap saveMilestone/deleteMilestone
-  if (typeof window.saveMilestone === 'function') {
-    const _saveMs = window.saveMilestone;
-    window.saveMilestone = function(){
-      const r = _saveMs.apply(this, arguments);
-      saveNoPrompt();
-      return r;
-    };
-  }
-  if (typeof window.deleteMilestone === 'function') {
-    const _delMs = window.deleteMilestone;
-    window.deleteMilestone = function(){
-      const r = _delMs.apply(this, arguments);
-      saveNoPrompt();
-      return r;
-    };
-  }
-
-  // 5) Hamburger wiring
-  function twMenuOpen(open){
-    const menu=document.getElementById('tw-menu');
-    if(!menu) return;
-    const next=(typeof open==='boolean')?open:menu.classList.contains('hidden');
+  // ---------- Advanced Hamburger ----------
+  function twMenuOpen(open) {
+    const menu = document.getElementById('tw-menu');
+    if (!menu) return;
+    const next = (typeof open === 'boolean') ? open : menu.classList.contains('hidden');
     menu.classList.toggle('hidden', !next);
   }
-  window.addEventListener('DOMContentLoaded', ()=>{
-    const btn=document.getElementById('tw-menu-btn');
-    const menu=document.getElementById('tw-menu');
-    if(btn) btn.addEventListener('click',(e)=>{e.stopPropagation();twMenuOpen();});
-    document.addEventListener('click',(e)=>{ if(!menu) return; const inside=menu.contains(e.target)||btn.contains(e.target); if(!inside) twMenuOpen(false); });
-    document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') twMenuOpen(false); });
-    document.querySelectorAll('[data-tw-nav]').forEach(b=>b.addEventListener('click',()=>{ try{ if(typeof switchTab==='function') switchTab(b.getAttribute('data-tw-nav')); } finally { twMenuOpen(false);} }));
 
-    // Safety: force initial render shortly after load
-    setTimeout(()=>{ twSafeRender(); }, 600);
+  function twNav(tab) {
+    try {
+      if (typeof switchTab === 'function') switchTab(tab);
+    } finally {
+      twMenuOpen(false);
+    }
+  }
+
+  // Workspace select inside hamburger mirrors main workspace select
+  function twSyncWsSelectFromMain() {
+    const main = document.getElementById('ws-select');
+    const tw = document.getElementById('tw-ws-select');
+    if (!main || !tw) return;
+    tw.innerHTML = main.innerHTML;
+    tw.value = main.value;
+    const ind = document.getElementById('tw-ws-indicator');
+    const saved = document.getElementById('ws-saved-indicator');
+    if (ind && saved) ind.textContent = saved.textContent || '';
+  }
+
+  async function twSelectWorkspace(id) {
+    try {
+      twMenuOpen(false);
+      if (!id) return;
+      if (typeof wsSelectWorkspace === 'function') {
+        twLoader.show('Loading dashboard…', 'Switching workspace', 35);
+        twLoader.pct(45);
+        await Promise.resolve(wsSelectWorkspace(id));
+        // Ensure render on first load / after switch
+        if (typeof renderAll === 'function') renderAll();
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message || String(e));
+    } finally {
+      twLoader.hide();
+      // sync selects
+      setTimeout(twSyncWsSelectFromMain, 50);
+    }
+  }
+
+  async function twWsAction(action) {
+    try {
+      twMenuOpen(false);
+      if (!action) return;
+      if (action === 'new') return wsOpenCreateModal && wsOpenCreateModal();
+      if (action === 'rename') return wsRenameCurrent && wsRenameCurrent();
+      if (action === 'delete') {
+        twLoader.show('Deleting dashboard…', 'Removing from GitHub / database', 40);
+        return await Promise.resolve(wsDeleteCurrent && wsDeleteCurrent());
+      }
+      if (action === 'save') {
+        twLoader.show('Saving dashboard…', 'Persisting to GitHub / database', 45);
+        return await Promise.resolve(wsSaveNow && wsSaveNow({ prompt: true }));
+      }
+      if (action === 'export') return wsExportCurrent && wsExportCurrent();
+      if (action === 'exportExcel') return wsExportCurrentExcel && wsExportCurrentExcel();
+      if (action === 'import') {
+        const inp = document.getElementById('ws-import-file');
+        if (inp) inp.click();
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message || String(e));
+    } finally {
+      twLoader.hide();
+      setTimeout(twSyncWsSelectFromMain, 50);
+    }
+  }
+
+  // ---------- First-load Fix + Advanced Init ----------
+  async function twInitApp() {
+    try {
+      twLoader.show('Starting…', 'Checking session', 15);
+      // Ensure auth init runs (existing twInit redirects if not logged in)
+      if (typeof twInit === 'function') {
+        await Promise.resolve(twInit());
+      }
+      twLoader.pct(30);
+
+      // Inject Run iframe content early so Run tab is ready
+      try {
+        const tmpl = document.getElementById('run-dashboard-template');
+        const iframe = document.getElementById('run-iframe');
+        if (tmpl && iframe && !iframe.srcdoc) {
+          iframe.srcdoc = tmpl.innerHTML;
+        }
+      } catch (e) {
+        console.warn('Run iframe init failed:', e);
+      }
+
+      twLoader.show('Loading dashboards…', 'Syncing workspace list', 45);
+
+      // Initialize workspace manager (some versions are async)
+      if (typeof wsInitWorkspaceManager === 'function') {
+        await Promise.resolve(wsInitWorkspaceManager());
+      }
+      twLoader.pct(70);
+
+      // Ensure first-time render happens (this fixes "loads only after switching dashboard")
+      if (typeof renderAll === 'function') {
+        renderAll();
+      }
+
+      // Sync hamburger workspace select from main select
+      setTimeout(twSyncWsSelectFromMain, 100);
+
+      // Hook main workspace select changes to keep hamburger select updated
+      const mainSel = document.getElementById('ws-select');
+      if (mainSel) {
+        mainSel.addEventListener('change', () => setTimeout(twSyncWsSelectFromMain, 50));
+      }
+
+      twLoader.show('Almost done…', 'Finalizing UI', 88);
+      // Allow browser a tick to paint
+      await new Promise(r => setTimeout(r, 150));
+      twLoader.hide();
+
+    } catch (e) {
+      console.error(e);
+      twLoader.show('Failed to load', e.message || String(e), 100);
+      // keep visible so user can read
+    }
+  }
+
+  // Close menu on outside click and Escape; open on button
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('tw-menu-btn');
+    const menu = document.getElementById('tw-menu');
+    if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); twMenuOpen(); });
+    document.addEventListener('click', (e) => {
+      if (!menu) return;
+      const inside = menu.contains(e.target) || (btn && btn.contains(e.target));
+      if (!inside) twMenuOpen(false);
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') twMenuOpen(false); });
+
+    // Start app init after DOM is ready
+    twInitApp();
   });
-})();
 </script>
 
+<script>
+
+// ===== Workspace Actions Menu (responsive) =====
+(function(){
+  function qs(id){ return document.getElementById(id); }
+  function isOpen(){ const m=qs('ws-actions-menu'); return m && !m.classList.contains('hidden'); }
+  function openMenu(){
+    const menu = qs('ws-actions-menu');
+    const btn = qs('ws-actions-btn');
+    const back = qs('ws-actions-backdrop');
+    if(!menu || !btn) return;
+    menu.classList.remove('hidden');
+    btn.setAttribute('aria-expanded','true');
+    if(back) back.classList.remove('hidden');
+  }
+  function closeMenu(){
+    const menu = qs('ws-actions-menu');
+    const btn = qs('ws-actions-btn');
+    const back = qs('ws-actions-backdrop');
+    if(menu) menu.classList.add('hidden');
+    if(back) back.classList.add('hidden');
+    if(btn) btn.setAttribute('aria-expanded','false');
+  }
+  async function perform(action){
+    if(action==='new') return window.wsOpenCreateModal && window.wsOpenCreateModal();
+    if(action==='rename') return window.wsRenameCurrent && window.wsRenameCurrent();
+    if(action==='save') return window.wsSaveNow && window.wsSaveNow({prompt:true});
+    if(action==='delete') return window.wsDeleteCurrent && window.wsDeleteCurrent();
+    if(action==='export') return window.wsExportCurrent && window.wsExportCurrent();
+    if(action==='exportExcel') return window.wsExportCurrentExcel && window.wsExportCurrentExcel();
+    if(action==='import'){
+      const inp = qs('ws-import-file');
+      if(inp) inp.click();
+      return;
+    }
+  }
+  window.addEventListener('DOMContentLoaded', ()=>{
+    const btn = qs('ws-actions-btn');
+    const menu = qs('ws-actions-menu');
+    const back = qs('ws-actions-backdrop');
+    if(btn) btn.addEventListener('click', (e)=>{ e.preventDefault(); e.stopPropagation(); isOpen()?closeMenu():openMenu(); });
+    if(back) back.addEventListener('click', closeMenu);
+    if(menu) menu.addEventListener('click', async (e)=>{
+      const t=e.target;
+      const c=t && t.closest ? t.closest('[data-ws-close]') : null;
+      if(c){ e.preventDefault(); closeMenu(); return; }
+      const item=t && t.closest ? t.closest('[data-ws-action]') : null;
+      if(!item) return;
+      e.preventDefault();
+      const action=item.getAttribute('data-ws-action');
+      closeMenu();
+      try{ await perform(action); }catch(err){ console.error(err); alert(err.message||String(err)); }
+    });
+    document.addEventListener('click', (e)=>{ if(!isOpen()) return; const inside = (menu && menu.contains(e.target)) || (btn && btn.contains(e.target)); if(!inside) closeMenu(); });
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenu(); });
+  });
+})();
+
+</script>
 </body>
 </html>
