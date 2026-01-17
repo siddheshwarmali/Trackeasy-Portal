@@ -1,76 +1,62 @@
-'use strict';
 
-const DEFAULT_DIR = 'data/dashboards';
+import crypto from 'crypto';
 
-function requireEnv(name) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
+export function getCfg(){
+  const token = process.env.GITHUB_TOKEN;
+  const owner = process.env.GITHUB_OWNER;
+  const repo = process.env.GITHUB_REPO;
+  const branch = process.env.GITHUB_BRANCH || 'main';
+  const path = process.env.GITHUB_DB_PATH || 'db/users.json';
+  if(!token || !owner || !repo){
+    throw new Error('Missing env vars: GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO');
+  }
+  return { token, owner, repo, branch, path };
 }
 
-function ghHeaders() {
-  const token = requireEnv('GITHUB_TOKEN');
-  return {
-    'Accept': 'application/vnd.github+json',
-    'Authorization': `Bearer ${token}`,
-    'X-GitHub-Api-Version': '2022-11-28'
-  };
-}
-
-function ghBase() {
-  const owner = requireEnv('GITHUB_OWNER');
-  const repo = requireEnv('GITHUB_REPO');
-  return { owner, repo };
-}
-
-function ghBranch() { return process.env.GITHUB_BRANCH || 'main'; }
-
-function ghDashDir() {
-  return (process.env.GITHUB_DASHBOARD_DIR || DEFAULT_DIR).replace(/^\/+|\/+$/g,'');
-}
-
-function b64(s) { return Buffer.from(s, 'utf8').toString('base64'); }
-
-async function ghGetContent(path) {
-  const { owner, repo } = ghBase();
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURI(path)}?ref=${encodeURIComponent(ghBranch())}`;
-  const r = await fetch(url, { headers: ghHeaders() });
-  if (r.status === 404) return null;
+export async function readJson(){
+  const { token, owner, repo, branch, path } = getCfg();
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+  const r = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json'
+    }
+  });
+  if(!r.ok){
+    const txt = await r.text();
+    throw new Error(`GitHub read failed (${r.status}): ${txt}`);
+  }
   const data = await r.json();
-  if (!r.ok) throw new Error((data && data.message) || `GitHub GET failed (${r.status})`);
-  return data;
+  const json = JSON.parse(Buffer.from(data.content, 'base64').toString('utf8'));
+  return { json, sha: data.sha };
 }
 
-async function ghPutFile(path, contentText, message) {
-  const existing = await ghGetContent(path);
-  const sha = existing && existing.sha ? existing.sha : undefined;
-  const body = { message: message || `Update ${path}`, content: b64(contentText), branch: ghBranch() };
-  if (sha) body.sha = sha;
-  const { owner, repo } = ghBase();
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURI(path)}`;
-  const r = await fetch(url, { method: 'PUT', headers: { ...ghHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify(body) });
-  const data = await r.json();
-  if (!r.ok) throw new Error((data && data.message) || `GitHub PUT failed (${r.status})`);
-  return data;
+export async function writeJson(newJson, sha, message='Update db/users.json'){
+  const { token, owner, repo, branch, path } = getCfg();
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+  const content = Buffer.from(JSON.stringify(newJson, null, 2), 'utf8').toString('base64');
+
+  const r = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      message,
+      content,
+      sha,
+      branch
+    })
+  });
+  if(!r.ok){
+    const txt = await r.text();
+    throw new Error(`GitHub write failed (${r.status}): ${txt}`);
+  }
+  return r.json();
 }
 
-async function ghDeleteFile(path, message) {
-  const existing = await ghGetContent(path);
-  if (!existing || !existing.sha) return { ok: true, skipped: true };
-  const { owner, repo } = ghBase();
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURI(path)}`;
-  const body = { message: message || `Delete ${path}`, sha: existing.sha, branch: ghBranch() };
-  const r = await fetch(url, { method: 'DELETE', headers: { ...ghHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify(body) });
-  const data = await r.json();
-  if (!r.ok) throw new Error((data && data.message) || `GitHub DELETE failed (${r.status})`);
-  return data;
+export function uuid(){
+  return crypto.randomUUID ? crypto.randomUUID() : ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>(c^crypto.randomBytes(1)[0]&15>>c/4).toString(16));
 }
-
-async function readJsonFile(path) {
-  const file = await ghGetContent(path);
-  if (!file || file.type !== 'file' || !file.content) return null;
-  const text = Buffer.from(file.content, 'base64').toString('utf8');
-  try { return JSON.parse(text); } catch { return null; }
-}
-
-module.exports = { ghDashDir, ghGetContent, ghPutFile, ghDeleteFile, readJsonFile };
