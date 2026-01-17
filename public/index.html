@@ -1,0 +1,53 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Trackeasy Portal — Home</title>
+  <link rel="stylesheet" href="/app.css"/>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="topbar">
+        <div>
+          <h1>Home</h1>
+          <p id="who" class="small">Loading user…</p>
+        </div>
+        <div class="actions">
+          <a class="btn2" href="/user-manager.html">User Manager</a>
+          <button id="logout" class="danger">Logout</button>
+        </div>
+      </div>
+
+      <h2>Dashboard</h2>
+      <p>Welcome! This sample portal is deployable on Vercel and uses a GitHub JSON file as database.</p>
+
+      <div id="t" class="toast"></div>
+    </div>
+  </div>
+
+<script type="module">
+  import { api, requireAuth, toast } from '/client.js';
+
+  const who = document.getElementById('who');
+  const logout = document.getElementById('logout');
+
+  const me = await requireAuth('/login.html');
+  if(me){
+    who.textContent = `Signed in as ${me.user.name} (${me.user.email}) — role: ${me.user.role}`;
+  }
+
+  logout.addEventListener('click', async ()=>{
+    try{
+      await api('/api/auth/logout', { method:'POST' });
+      toast('t','Logged out', true);
+      setTimeout(()=>location.href='/login.html', 300);
+    }catch(e){
+      toast('t', e.message, false);
+    }
+  });
+</script>
+</body>
+</html>
