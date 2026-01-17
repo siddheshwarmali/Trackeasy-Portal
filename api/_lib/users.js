@@ -2,7 +2,7 @@
 import { readJson, writeJson, nowIso } from './github.js';
 import { pbkdf2Hash } from './auth.js';
 
-const USERS_PATH = process.env.GITHUB_USERS_PATH || 'db/users.json';
+const USERS_PATH = process.env.GITHUB_USERS_PATH || 'data/users.json';
 
 export async function loadUsers() {
   const { json, sha } = await readJson(USERS_PATH, { users: [] });
