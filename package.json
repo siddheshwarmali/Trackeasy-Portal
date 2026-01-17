@@ -5,6 +5,6 @@
   "type": "commonjs",
   "description": "TrackWisy dashboard with robust auth/login/user management",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   }
 }
