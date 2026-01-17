@@ -1,3 +1,4 @@
+'use strict';
 
 const { setCookie, json } = require('../_lib/auth');
 const isProd = process.env.NODE_ENV === 'production';

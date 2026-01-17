@@ -1,3 +1,4 @@
+'use strict';
 
 const { verify, parseCookies, json } = require('../_lib/auth');
 module.exports = async (req, res) => {

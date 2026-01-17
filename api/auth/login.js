@@ -1,3 +1,4 @@
+'use strict';
 
 const { sign, setCookie, json, readJson, verifyPassword } = require('../_lib/auth');
 const { readJsonFile } = require('../_lib/github');

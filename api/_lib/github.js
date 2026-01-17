@@ -1,3 +1,4 @@
+'use strict';
 
 const DEFAULT_DIR = 'data/dashboards';
 

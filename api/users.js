@@ -1,3 +1,4 @@
+'use strict';
 
 const { verify, parseCookies, json, readJson, hashPassword } = require('./_lib/auth');
 const { readJsonFile, ghPutFile } = require('./_lib/github');
