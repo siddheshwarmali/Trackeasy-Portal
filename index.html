@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- SheetJS for Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    
+    <!-- html2canvas for Report Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f9fafb; }
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .modal { display: none; }
+        .modal.open { display: flex; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
+        .hidden-by-report { display: none !important; }
+        
+        .clickable-cell:hover { text-decoration: underline; cursor: pointer; color: #2563eb; font-weight: 600; }
+        [contenteditable] { padding: 4px 8px; border-radius: 4px; transition: all 0.2s; border: 1px solid transparent; }
+        [contenteditable]:hover { background-color: #f8fafc; border-color: #e2e8f0; }
+        [contenteditable]:focus { outline: none; background-color: #eff6ff; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1); }
+        .l3-row:hover { background-color: #f8fafc; }
+        .l3-row:hover .delete-btn { opacity: 1; pointer-events: auto; }
+        .delete-btn { opacity: 0; transition: opacity 0.2s; }
+    </style>
+
+    <style>
+      @keyframes ghspin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+      /* Hide Clear Storage button */
+      button[onclick^="wsClearLocalStorage"], button[onclick="wsClearLocalStorage()"] { display:none !important; }
+    </style>
+
+<script>
+  async function twJson(url, opt){
+    const r = await fetch(url, Object.assign({headers:{'Accept':'application/json','Content-Type':'application/json'}}, opt||{}));
+    const t = await r.text();
+    let j={};
+    try{ j=JSON.parse(t||'{}'); }catch{ j={error:t}; }
+    if(!r.ok) throw new Error(j.error||j.message||t||('HTTP '+r.status));
+    return j;
+  }
+
+  async function twInit(){
+    const pill=document.getElementById('tw-userpill');
+    const mgr=document.getElementById('tw-usermgr');
+    const lo=document.getElementById('tw-logout');
+    try{
+      const me = await twJson('/api/auth/me');
+      if(!me || !me.authenticated){
+        const next=encodeURIComponent(location.pathname+location.search+location.hash);
+        location.replace('/login.html?next='+next);
+        return;
+      }
+      const role = me.role || 'viewer';
+      document.body.classList.remove('role-admin','role-creator','role-viewer');
+      document.body.classList.add('role-'+role);
+      if(pill) pill.textContent = (me.userId||'User') + ' • ' + role;
+      if(mgr) mgr.classList.toggle('hidden', role!=='admin');
+      if(lo) lo.onclick = async ()=>{ try{ await twJson('/api/auth/logout', {method:'POST'});}catch(e){} location.href='/login.html'; };
+    }catch(e){
+      const next=encodeURIComponent(location.pathname+location.search+location.hash);
+      location.replace('/login.html?next='+next);
+    }
+  }
+  window.addEventListener('DOMContentLoaded', ()=>{ twInit(); });
+</script>
+
+</head>
+<body class="text-gray-800">
+
+    <div class="max-w-7xl mx-auto p-6 min-h-screen">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Executive Dashboard</h1>
+            <p class="text-gray-600">Comprehensive project and performance overview</p>
+        </div>
+
+        
+        
+<div id="tw-userbar" class="mb-4 flex flex-wrap items-center gap-2 justify-end">
+  <span id="tw-userpill" class="text-xs px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700">Checking login…</span>
+  <a id="tw-usermgr" href="/user-manager.html" class="hidden text-xs px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100">User Manager</a>
+  <button id="tw-logout" type="button" class="text-xs px-3 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 hover:bg-red-100">Logout</button>
+</div>
+
+<!-- Workspace Manager (NEW: Multi-dashboard + Local Save/Load) -->
+        <div class="bg-white rounded-lg shadow-md p-4 mb-6 animate-fade-in">
+            <div class="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <i data-lucide="folder" class="w-5 h-5 text-blue-600"></i>
+                    <span class="font-semibold text-gray-800">Workspace</span>
+                    <select id="ws-select" class="ml-1 px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Loading…</option>
+                    </select>
+                    <span id="ws-saved-indicator" class="text-xs text-gray-500 ml-2">Not saved</span>
+                </div>
+
+                <div class="flex flex-wrap gap-2 items-center">
+                    <button type="button" onclick="wsOpenCreateModal()" class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
+                        <i data-lucide="plus" class="w-4 h-4"></i><span>New</span>
+                    </button>
+                    <button type="button" onclick="wsRenameCurrent()" class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2">
+                        <i data-lucide="pencil" class="w-4 h-4"></i><span>Rename</span>
+                    </button>
+<button type="button" onclick="wsDeleteCurrent()" class="px-3 py-2 text-sm bg-red-50 text-red-700 rounded-md hover:bg-red-100 flex items-center gap-2">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i><span>Delete</span>
+                    </button>
+
+                    <span class="mx-1 w-px h-8 bg-gray-200"></span>
+
+                    <button type="button" onclick="wsSaveNow()" class="px-3 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2">
+                        <i data-lucide="save" class="w-4 h-4"></i><span>Save</span>
+                    </button>
+                    <button type="button" onclick="wsExportCurrent()" class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2">
+                        <i data-lucide="download" class="w-4 h-4"></i><span>Export</span>
+                    </button>
+<button type="button" onclick="wsExportCurrentExcel()" class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span>Export Excel</span>
+                    </button>
+
+                    <label class="px-3 py-2 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 flex items-center gap-2 cursor-pointer">
+                        <i data-lucide="upload" class="w-4 h-4"></i><span>Import</span>
+                        <input type="file" id="ws-import-file" accept="application/json" class="hidden" />
+                    </label>
+
+                    <button type="button" onclick="wsClearLocalStorage()" class="px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100 flex items-center gap-2" title="Clears ONLY workspace data stored in this browser">
+                        <i data-lucide="database" class="w-4 h-4"></i><span>Clear Storage</span>
+                    </button>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">
+                Workspaces are saved locally in this browser. Use <span class="font-medium">Export</span> to back up or share, and <span class="font-medium">Import</span> to restore.
+            </p>
+        </div>
+<!-- Main Card -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <!-- Toolbar -->
+            <div class="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                    <i data-lucide="activity" class="w-6 h-6 mr-2 text-blue-600"></i>
+                    Executive View
+                </h2>
+</div>
+
+            <!-- BUILD TAB CONTENT -->
+            <div id="content-build" class="animate-fade-in">
+                
+                <!-- Report Controls -->
+                <div class="flex justify-end gap-3 mb-4 no-print">
+                    <button onclick="openReportModal()" class="flex items-center space-x-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition shadow-sm text-sm font-medium">
+                        <i data-lucide="sliders-horizontal" class="w-4 h-4"></i><span>Customize View</span>
+                    </button>
+                    <button onclick="exportReport()" class="flex items-center space-x-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition shadow-sm text-sm font-medium">
+                        <i data-lucide="download" class="w-4 h-4"></i><span>Export Report</span>
+                    </button>
+                </div>
+
+                <!-- 0. Overall Summary Section -->
+                <div id="summary-section" class="mb-8 border-b pb-8 border-gray-200 hidden">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-semibold text-gray-700 flex items-center">
+                            <i data-lucide="file-text" class="w-5 h-5 mr-2 text-purple-600"></i>Overall Summary
+                        </h3>
+                        <div class="flex space-x-2 no-print">
+                             <button onclick="regenerateSummary()" class="flex items-center space-x-2 px-3 py-1 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition text-xs font-medium" title="Regenerate based on current data">
+                                <i data-lucide="wand-2" class="w-3 h-3"></i><span>Auto-Gen</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="summary-display" 
+                         ondblclick="toggleSummaryEdit()"
+                         title="Double-click to edit summary"
+                         class="bg-purple-50 p-4 rounded-lg border border-purple-100 text-gray-700 text-sm leading-relaxed whitespace-pre-wrap cursor-pointer hover:bg-purple-100 transition-colors"></div>
+                    
+                    <div id="summary-edit" class="hidden">
+                        <textarea id="summary-input" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm h-32" placeholder="Enter executive summary..."></textarea>
+                        <div class="flex justify-between mt-2">
+                            <button onclick="deleteSummaryText()" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200">Delete</button>
+                            <div class="space-x-2">
+                                <button onclick="cancelSummaryEdit()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">Cancel</button>
+                                <button onclick="saveSummary()" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 1. Milestones Section -->
+                <div id="section-milestones" class="mb-8 border-b pb-8 border-gray-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-semibold text-gray-700 cursor-pointer hover:text-blue-600 select-none transition-colors"
+                            onclick="handleHeaderClick(openMilestoneModal, 'milestone-upload-controls')"
+                            title="Click to Add Milestone | Double click to Toggle Upload">
+                            Project Milestones - Application Tracker
+                        </h3>
+                        <div id="milestone-upload-controls" class="hidden flex items-center space-x-2 no-print">
+                            <label class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition animate-fade-in">
+                                <i data-lucide="upload" class="w-4 h-4"></i><span class="text-sm font-medium">Upload Excel</span>
+                                <input type="file" accept=".xlsx,.xls" onchange="handleFileUpload(this, 'milestones')" class="hidden" />
+                            </label>
+                        </div>
+                    </div>
+                    <div id="milestone-container" class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200 p-6 overflow-x-auto min-h-[150px] custom-scroll"></div>
+                    <div class="flex justify-center mt-4 pt-2 border-t border-blue-100 no-print">
+                        <button onclick="toggleTrackerDetails()" class="flex items-center justify-center p-2 rounded-full bg-white hover:bg-gray-50 text-gray-500 hover:text-blue-600 shadow-sm border border-gray-200 transition-all hover:shadow-md">
+                            <i id="tracker-arrow" data-lucide="chevron-down" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <div id="milestone-details" class="mt-4 pt-4 border-t-2 border-blue-200 animate-fade-in hidden">
+                         <p class="text-sm font-semibold text-gray-700 mb-4">Application Tracker Status (Auto-calculated):</p>
+                         <div class="overflow-x-auto custom-scroll">
+                             <div id="milestone-cards" class="flex gap-3 pb-2" style="min-width: max-content"></div>
+                         </div>
+                    </div>
+                </div>
+
+                <!-- 2. Task Discipline Section -->
+                <div id="section-discipline" class="mb-8 border-b pb-8 border-gray-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-semibold text-gray-700 flex items-center cursor-pointer hover:text-teal-600 select-none transition-colors"
+                            onclick="handleHeaderClick(null, 'discipline-controls')"
+                            title="Double-click to toggle upload/edit buttons">
+                            <i data-lucide="table" class="w-5 h-5 mr-2 text-teal-600"></i>Task Discipline Status
+                        </h3>
+                        <div id="discipline-controls" class="hidden flex space-x-2 animate-fade-in no-print">
+                            <button onclick="openAdoModal('discipline')" class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition shadow-sm">
+                                <i data-lucide="cloud-lightning" class="w-4 h-4"></i><span class="text-sm font-medium">Sync ADO</span>
+                            </button>
+                            
+                            <label class="flex items-center space-x-2 px-4 py-2 bg-teal-600 text-white rounded-lg cursor-pointer hover:bg-teal-700 transition shadow-sm">
+                                <i data-lucide="upload" class="w-4 h-4"></i><span class="text-sm font-medium">Upload Excel</span>
+                                <input type="file" accept=".xlsx,.xls" onchange="handleDisciplineUpload(this)" class="hidden" />
+                            </label>
+                            <button onclick="openDisciplineModal()" class="flex items-center space-x-2 px-4 py-2 bg-white text-teal-600 border border-teal-600 rounded-lg cursor-pointer hover:bg-teal-50 transition shadow-sm">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i><span class="text-sm font-medium">Edit Data</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm mb-6 custom-scroll">
+                        <table class="min-w-full divide-y divide-gray-200" id="discipline-table">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Discipline</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Open</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Closed</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Hold</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Grand Total</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200" id="discipline-tbody"></tbody>
+                        </table>
+                        <div class="bg-gray-50 p-2 border-t border-gray-200 flex justify-center no-print">
+                            <button onclick="toggleL2Details('ALL')" class="text-xs flex items-center text-teal-700 hover:text-teal-900 font-medium px-3 py-1 rounded hover:bg-teal-100 transition">
+                               <i id="l2-eye-icon" data-lucide="eye" class="w-3 h-3 mr-1"></i><span id="l2-btn-text">View All L2 Details</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="l2-container" class="mt-4 animate-fade-in border-t-2 border-teal-100 pt-4 hidden">
+                         <h4 id="l2-header-text" class="text-lg font-medium text-teal-800 mb-4 pl-2 border-l-4 border-teal-500">Detailed Activities</h4>
+                         <div id="l2-content" class="space-y-6"></div>
+                    </div>
+                </div>
+
+                <!-- 3. User Story Section -->
+                <div id="section-user-stories" class="mb-8 border-b pb-8 border-gray-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-semibold text-gray-700 flex items-center cursor-pointer select-none hover:text-indigo-600"
+                            onclick="handleHeaderClick(() => toggleElement('us-action-controls'), null)"
+                            title="Double-click to toggle upload button">
+                            <i data-lucide="list" class="w-5 h-5 mr-2 text-indigo-600"></i>User Story Tracker
+                        </h3>
+                        <div id="us-action-controls" class="flex items-center space-x-2 no-print hidden">
+                             <button onclick="openAdoModal()" class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition shadow-sm">
+                                <i data-lucide="cloud-lightning" class="w-4 h-4"></i><span class="text-sm font-medium">Sync ADO</span>
+                            </button>
+                            <button onclick="openUsBugModal('US', null, activeUsStage || usStages[0])" class="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg cursor-pointer hover:bg-indigo-700 transition shadow-sm">
+                                <i data-lucide="plus" class="w-4 h-4"></i><span class="text-sm font-medium">Add Story</span>
+                            </button>
+                            <div id="us-upload-controls">
+                                <label class="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg cursor-pointer hover:bg-indigo-700 transition shadow-sm animate-fade-in">
+                                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span class="text-sm font-medium">Upload Excel</span>
+                                    <input type="file" accept=".xlsx,.xls" onchange="handleFileUpload(this, 'stories')" class="hidden" />
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4" id="us-tiles"></div>
+                        <p class="text-xs text-gray-400 text-center mt-3 no-print">Double-click on a tile to view detailed User Stories</p>
+                    </div>
+                </div>
+
+                <!-- 3.5 Bugs Tracker Section -->
+                <div id="section-bugs" class="mb-8 border-b pb-8 border-gray-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-semibold text-gray-700 flex items-center cursor-pointer select-none hover:text-red-600"
+                            onclick="handleHeaderClick(() => toggleElement('bug-action-controls'), null)"
+                            title="Double-click to toggle upload button">
+                            <i data-lucide="bug" class="w-5 h-5 mr-2 text-red-600"></i>Bugs Tracker
+                        </h3>
+                        <div id="bug-action-controls" class="flex items-center space-x-2 no-print hidden">
+                             <button onclick="openAdoModal('bugs')" class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition shadow-sm">
+                                <i data-lucide="cloud-lightning" class="w-4 h-4"></i><span class="text-sm font-medium">Sync ADO</span>
+                            </button>
+                            <button onclick="openUsBugModal('Bug', null, activeBugStage || bugStages[0])" class="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg cursor-pointer hover:bg-red-700 transition shadow-sm">
+                                <i data-lucide="plus" class="w-4 h-4"></i><span class="text-sm font-medium">Add Bug</span>
+                            </button>
+                            <div id="bug-upload-controls">
+                                <label class="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg cursor-pointer hover:bg-red-700 transition shadow-sm animate-fade-in">
+                                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span class="text-sm font-medium">Upload Excel</span>
+                                    <input type="file" accept=".xlsx,.xls" onchange="handleFileUpload(this, 'bugs')" class="hidden" />
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4" id="bug-tiles"></div>
+                        <p class="text-xs text-gray-400 text-center mt-3 no-print">Double-click on a tile to view detailed Bugs</p>
+                    </div>
+                </div>
+
+                <!-- 4. Blockers Section -->
+                <div id="section-blockers" class="mb-8 border-b pb-8 border-gray-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-semibold text-gray-700 flex items-center cursor-pointer hover:text-blue-600 transition"
+                            onclick="openBlockerModal()"
+                            title="Click to add new blocker">
+                            <i data-lucide="alert-circle" class="w-5 h-5 mr-2 text-red-500"></i>Active Blockers (<span id="blocker-count">0</span>)
+                        </h3>
+                    </div>
+                    <div id="blocker-list" class="space-y-3"></div>
+                </div>
+
+                <!-- 5. KPI Section -->
+                <div id="section-kpi" class="mb-8 border-b pb-8 border-gray-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-semibold text-gray-700 flex items-center cursor-pointer select-none"
+                            onclick="handleHeaderClick(openKPIModal, 'kpi-upload-controls')"
+                            title="Click to Add KPI | Double click to show/hide upload option">
+                            <i data-lucide="bar-chart-2" class="w-5 h-5 mr-2 text-blue-600"></i>Key Performance Indicators
+                        </h3>
+                        <div id="kpi-upload-controls" class="hidden no-print">
+                             <label class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition shadow-sm animate-fade-in">
+                                <i data-lucide="database" class="w-4 h-4"></i><span class="text-sm font-medium">Upload KPI Excel</span>
+                                <input type="file" accept=".xlsx,.xls" onchange="handleFileUpload(this, 'kpi')" class="hidden" />
+                            </label>
+                        </div>
+                    </div>
+                    <div id="kpi-container" class="space-y-6"></div>
+                </div>
+
+                <!-- 6. BAU Section -->
+                <div id="section-bau">
+                    <h4 class="text-lg font-medium text-gray-700 mb-3">BAU (Business As Usual) Update</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200"><p class="text-xs text-gray-600 mb-1">Total Tickets</p><p id="bau-total" class="text-xl font-bold text-slate-600">0</p></div>
+                        <div class="bg-green-50 p-3 rounded-lg border border-green-200"><p class="text-xs text-gray-600 mb-1">Within SLA</p><p id="bau-within" class="text-xl font-bold text-green-600">0</p></div>
+                        <div class="bg-red-50 p-3 rounded-lg border border-red-200"><p class="text-xs text-gray-600 mb-1">Breached SLA</p><p id="bau-breached" class="text-xl font-bold text-red-600">0</p></div>
+                        <div class="bg-blue-50 p-3 rounded-lg border border-blue-200"><p class="text-xs text-gray-600 mb-1">SLA %</p><p id="bau-sla" class="text-xl font-bold text-blue-600">0%</p></div>
+                    </div>
+                </div>
+
+            </div>
+            <!-- END BUILD TAB -->
+
+            <!-- RUN TAB CONTENT (IFrame Container) -->
+</div>
+    </div>
+
+    <!-- MODALS -->
+
+    <!-- L3 Task View Modal (New Task Management) -->
+    <div id="modal-l3" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-5xl h-[85vh] flex flex-col animate-fade-in">
+            <div class="flex justify-between items-center mb-6 border-b pb-4">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i data-lucide="layers" class="w-5 h-5 mr-2 text-teal-600"></i>
+                        <span id="l3-title">Task Details</span>
+                    </h3>
+                    <p class="text-sm text-gray-500 mt-1">Manage individual tasks for this discipline</p>
+                </div>
+                <button onclick="closeModal('modal-l3')" class="hover:bg-gray-100 p-1 rounded-full"><i data-lucide="x" class="w-6 h-6 text-gray-500"></i></button>
+            </div>
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex items-center space-x-2">
+                    <span class="text-sm font-medium text-gray-700">Status:</span>
+                    <select id="l3-filter-status" onchange="renderL3Table()" class="text-sm border rounded p-1 bg-gray-50">
+                        <option value="ALL">All</option>
+                        <option value="Open">Open</option>
+                        <option value="Closed">Closed</option>
+                        <option value="Hold">Hold</option>
+                    </select>
+                </div>
+                <button onclick="toggleL3Form()" class="flex items-center space-x-2 px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium shadow-sm transition">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i><span>Add New Task</span>
+                </button>
+            </div>
+            <div id="l3-form" class="hidden bg-gray-50 p-4 rounded-lg border border-teal-100 mb-4 animate-fade-in">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div class="md:col-span-2"><label class="block text-xs font-medium text-gray-500 mb-1">Task Title *</label><input type="text" id="l3-input-title" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-teal-500" placeholder="Task description..."></div>
+                    <div><label class="block text-xs font-medium text-gray-500 mb-1">Status</label><select id="l3-input-status" class="w-full border p-2 rounded text-sm"><option value="Open">Open</option><option value="Closed">Closed</option><option value="Hold">Hold</option></select></div>
+                    <div><label class="block text-xs font-medium text-gray-500 mb-1">Owner</label><input type="text" id="l3-input-owner" class="w-full border p-2 rounded text-sm" placeholder="Assignee"></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                     <div><label class="block text-xs font-medium text-gray-500 mb-1">ETA</label><input type="date" id="l3-input-eta" class="w-full border p-2 rounded text-sm"></div>
+                </div>
+                <div class="flex justify-end space-x-2"><button onclick="toggleL3Form()" class="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300">Cancel</button><button onclick="saveL3Task()" class="px-3 py-1 bg-teal-600 text-white rounded text-sm hover:bg-teal-700">Save Task</button></div>
+            </div>
+            <div class="flex-1 overflow-auto custom-scroll border rounded-lg bg-white">
+                <table class="min-w-full divide-y divide-gray-200 relative"><thead class="bg-gray-50 sticky top-0 z-10"><tr id="l3-thead-row"></tr></thead><tbody id="l3-tbody" class="bg-white divide-y divide-gray-200 text-sm"></tbody></table>
+                <div id="l3-empty" class="hidden p-8 text-center text-gray-400 italic">No tasks found. Add manually or Sync ADO.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Customization Modal -->
+    <div id="modal-report-config" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm animate-fade-in">
+            <div class="flex justify-between items-center mb-4"><h3 class="text-lg font-bold text-gray-800">Customize Report</h3><button onclick="closeModal('modal-report-config')"><i data-lucide="x" class="w-5 h-5 text-gray-500"></i></button></div>
+            <p class="text-sm text-gray-500 mb-4">Select sections to display:</p>
+            <div id="report-toggles" class="space-y-3 mb-6 max-h-[60vh] overflow-y-auto custom-scroll p-1"></div>
+            <div class="flex justify-end space-x-3"><button onclick="selectAllSections(true)" class="text-sm text-blue-600 hover:text-blue-800 mr-auto self-center">Select All</button><button onclick="applyReportView()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Apply View</button></div>
+        </div>
+    </div>
+
+    <!-- Details Modal (Used for US and Bugs) -->
+    <div id="modal-us-details" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-4xl h-[80vh] flex flex-col animate-fade-in">
+            <div class="flex justify-between items-center mb-6"><div><h3 class="text-xl font-bold text-gray-800"><span id="us-modal-type-prefix">User Stories</span>: <span id="us-modal-stage" class="text-blue-600"></span></h3><p class="text-sm text-gray-500"><span id="us-modal-count">0</span> items in this stage</p></div><button onclick="closeModal('modal-us-details')"><i data-lucide="x" class="w-6 h-6 text-gray-500"></i></button></div>
+            <div class="flex-1 overflow-auto custom-scroll border rounded-lg"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stage</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ETA</th></tr></thead><tbody id="us-details-tbody" class="bg-white divide-y divide-gray-200"></tbody></table></div>
+            <div class="flex justify-end mt-6"><button onclick="closeModal('modal-us-details')" class="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Close</button></div>
+        </div>
+    </div>
+
+
+
+    <!-- Add/Edit User Story / Bug Modal -->
+    <div id="modal-usbug" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg animate-fade-in">
+            <div class="flex items-center justify-between mb-4">
+                <h3 id="usbug-modal-title" class="text-lg font-semibold text-gray-800">Add Item</h3>
+                <button onclick="closeModal('modal-usbug')" class="text-gray-400 hover:text-gray-600" aria-label="Close">&times;</button>
+            </div>
+
+            <input type="hidden" id="usbug-datatype" />
+            <input type="hidden" id="usbug-mode" />
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">ID</label>
+                    <input id="usbug-id" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="e.g., US-123 / BUG-123" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Type</label>
+                    <input id="usbug-type" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="e.g., User Story / Bug" />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                    <textarea id="usbug-desc" rows="3" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Short title / description"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Stage</label>
+                    <select id="usbug-stage" class="w-full px-3 py-2 border rounded-lg text-sm"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Owner</label>
+                    <input id="usbug-owner" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Owner" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">ETA</label>
+                    <input id="usbug-eta" type="date" class="w-full px-3 py-2 border rounded-lg text-sm" />
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between mt-6">
+                <button id="usbug-delete-btn" onclick="deleteUsBugFromModal()" class="px-4 py-2 bg-red-50 text-red-700 rounded-lg text-sm font-medium hover:bg-red-100 hidden">Delete</button>
+                <div class="flex gap-2 ml-auto">
+                    <button onclick="closeModal('modal-usbug')" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Cancel</button>
+                    <button onclick="saveUsBugFromModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Milestone Modal -->
+    <div id="modal-milestone" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md animate-fade-in">
+            <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-gray-800" id="milestone-modal-title">Add New Milestone</h3><button onclick="closeModal('modal-milestone')"><i data-lucide="x" class="w-6 h-6 text-gray-500"></i></button></div>
+            <div class="space-y-4"><input type="hidden" id="ms-index"><div><label class="block text-sm font-medium text-gray-700 mb-1">Activity Name *</label><input type="text" id="ms-phase" class="w-full border border-gray-300 rounded-lg p-2"></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700 mb-1">Planned Start *</label><input type="date" id="ms-start" class="w-full border border-gray-300 rounded-lg p-2"></div><div><label class="block text-sm font-medium text-gray-700 mb-1">Planned End *</label><input type="date" id="ms-end" class="w-full border border-gray-300 rounded-lg p-2"></div></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700 mb-1">Actual Start</label><input type="date" id="ms-act-start" class="w-full border border-gray-300 rounded-lg p-2"></div><div><label class="block text-sm font-medium text-gray-700 mb-1">Actual End</label><input type="date" id="ms-act-end" class="w-full border border-gray-300 rounded-lg p-2"></div></div><div><label class="block text-sm font-medium text-gray-700 mb-1">Remark</label><textarea id="ms-remark" class="w-full border border-gray-300 rounded-lg p-2 h-20"></textarea></div></div>
+            <div class="flex justify-end space-x-3 mt-6"><button id="btn-delete-ms" onclick="deleteMilestone()" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium mr-auto hidden">Delete</button><button onclick="closeModal('modal-milestone')" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">Cancel</button><button onclick="saveMilestone()" class="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">Save</button></div>
+        </div>
+    </div>
+
+    <!-- Blocker Modal -->
+    <div id="modal-blocker" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md animate-fade-in">
+            <h3 class="text-lg font-bold text-gray-800 mb-4" id="blocker-modal-title">Add New Blocker</h3>
+            <div class="space-y-3"><input type="hidden" id="bl-id"><input type="text" id="bl-title" class="w-full px-3 py-2 border rounded-md text-sm" placeholder="Title *"><select id="bl-severity" class="w-full px-3 py-2 border rounded-md text-sm"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select><input type="text" id="bl-owner" class="w-full px-3 py-2 border rounded-md text-sm" placeholder="Owner *"><input type="text" id="bl-eta" class="w-full px-3 py-2 border rounded-md text-sm" placeholder="ETA *"></div>
+            <div class="flex justify-end space-x-2 mt-6"><button onclick="closeModal('modal-blocker')" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm">Cancel</button><button onclick="saveBlocker()" class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm">Save</button></div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="modal-delete-confirm" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm text-center animate-fade-in">
+             <h3 class="text-lg font-bold text-gray-900 mb-2">Delete Item?</h3><p class="text-sm text-gray-500 mb-6">Are you sure? This cannot be undone.</p><input type="hidden" id="delete-target-id"><input type="hidden" id="delete-type">
+             <div class="flex justify-center space-x-3"><button onclick="closeModal('modal-delete-confirm')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded text-sm">Cancel</button><button onclick="confirmDelete()" class="px-4 py-2 bg-red-600 text-white rounded text-sm">Delete</button></div>
+        </div>
+    </div>
+
+    <!-- KPI Modal -->
+    <div id="modal-kpi" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg animate-fade-in">
+            <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-gray-800" id="kpi-modal-title">Add/Edit KPI</h3><button onclick="closeModal('modal-kpi')"><i data-lucide="x" class="w-6 h-6 text-gray-500"></i></button></div>
+            <div class="space-y-4"><input type="hidden" id="kpi-index"><div><label class="block text-sm font-medium text-gray-700 mb-1">Category</label><input type="text" id="kpi-category" class="w-full border border-gray-300 rounded-lg p-2" placeholder="e.g. Performance"></div><div><label class="block text-sm font-medium text-gray-700 mb-1">KPI Name</label><input type="text" id="kpi-name" class="w-full border border-gray-300 rounded-lg p-2"></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700 mb-1">Current Value</label><input type="text" id="kpi-value" class="w-full border border-gray-300 rounded-lg p-2"></div><div><label class="block text-sm font-medium text-gray-700 mb-1">Threshold</label><input type="text" id="kpi-threshold" class="w-full border border-gray-300 rounded-lg p-2"></div></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label><input type="text" id="kpi-freq" class="w-full border border-gray-300 rounded-lg p-2"></div><div><label class="block text-sm font-medium text-gray-700 mb-1">Tool</label><input type="text" id="kpi-tool" class="w-full border border-gray-300 rounded-lg p-2"></div></div></div>
+            <div class="flex justify-end space-x-3 mt-6"><button id="btn-delete-kpi" onclick="deleteKPI()" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium mr-auto hidden">Delete</button><button onclick="closeModal('modal-kpi')" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">Cancel</button><button onclick="saveKPI()" class="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">Save</button></div>
+        </div>
+    </div>
+
+    <!-- ADO Sync Modal -->
+    <div id="modal-ado" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg animate-fade-in">
+            <div class="flex justify-between items-center mb-4"><div class="flex items-center"><i data-lucide="cloud-lightning" class="w-6 h-6 text-blue-600 mr-2"></i><h3 class="text-xl font-bold text-gray-800">Sync with Azure DevOps</h3></div><button onclick="closeModal('modal-ado')"><i data-lucide="x" class="w-6 h-6 text-gray-500"></i></button></div>
+            <div class="bg-blue-50 p-3 rounded-lg border border-blue-200 text-sm text-blue-800 mb-4"><p><strong>Note on CORS:</strong> Direct API calls from local files (`file://`) are blocked by modern browsers.</p></div>
+            <div id="ado-error" class="hidden bg-red-50 p-3 rounded-lg border border-red-200 text-sm text-red-800 mb-4 break-words"></div>
+            <div class="space-y-4 mb-6"><div><label class="block text-sm font-medium text-gray-700 mb-1">Organization</label><input type="text" id="ado-org" value="BFLDevOpsOrg" class="w-full border border-gray-300 rounded-lg p-2"></div><div><label class="block text-sm font-medium text-gray-700 mb-1">Project</label><input type="text" id="ado-proj" value="3in1 Agile Board_MarTech" class="w-full border border-gray-300 rounded-lg p-2"></div><div><label class="block text-sm font-medium text-gray-700 mb-1">Query ID</label><input type="text" id="ado-query" value="3a6725c4-6a00-43ff-ac2a-ed550c633088" class="w-full border border-gray-300 rounded-lg p-2 font-mono text-sm"></div><div><label class="block text-sm font-medium text-gray-700 mb-1">PAT Token</label><input type="password" id="ado-pat" class="w-full border border-gray-300 rounded-lg p-2" placeholder="Enter your Personal Access Token"></div></div>
+            <div class="flex justify-end space-x-3"><button onclick="loadMockAdoData()" class="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200">Load Mock Data (Demo)</button><button onclick="closeModal('modal-ado')" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">Cancel</button><button id="btn-sync-ado" onclick="handleAdoSync()" class="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center">Sync Now</button></div>
+        </div>
+    </div>
+
+    <!-- User Mapping Modal -->
+    <div id="modal-mapping" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl animate-fade-in flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center mb-4 border-b pb-2"><h3 class="text-xl font-bold text-gray-800">Map Users to Disciplines</h3><button onclick="closeModal('modal-mapping')"><i data-lucide="x" class="w-6 h-6 text-gray-500"></i></button></div>
+            <div class="flex-1 overflow-y-auto custom-scroll border rounded-lg p-4 bg-gray-50 mb-4"><div id="mapping-container" class="space-y-3"></div></div>
+            <div class="flex justify-end space-x-3 pt-2 border-t"><button onclick="closeModal('modal-mapping')" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">Cancel</button><button onclick="applyDisciplineMapping()" class="px-6 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700">Apply & Process</button></div>
+        </div>
+    </div>
+
+    <!-- Discipline Edit Modal (Tabs L1/L2) -->
+    <div id="modal-discipline" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-6xl h-[90vh] flex flex-col animate-fade-in">
+            <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold text-gray-800">Edit Task Discipline</h3><button onclick="closeModal('modal-discipline')"><i data-lucide="x" class="w-6 h-6 text-gray-500"></i></button></div>
+            <div class="flex space-x-2 mb-4 border-b border-gray-200"><button id="tab-l1-btn" onclick="switchDiscTab('L1')" class="px-4 py-2 text-sm font-medium border-b-2 border-teal-600 text-teal-600">L1 Summary</button><button id="tab-l2-btn" onclick="switchDiscTab('L2')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500">L2 Detailed</button></div>
+            <div id="disc-tab-content" class="flex-1 overflow-auto p-1 custom-scroll"></div>
+            <div class="flex justify-end mt-4 pt-2 border-t border-gray-200"><button onclick="saveDisciplineData()" class="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium">Save & Close</button></div>
+        </div>
+    </div>
+
+    <!-- TEMPLATE FOR RUN TAB -->
+<script>
+        // --- GLOBAL & UTILITY FUNCTIONS ---
+        // L3 Data State
+        let l3Data = []; 
+        let activeL3Discipline = null;
+        
+        // UUID Generator for reliable CRUD
+        function generateUUID() {
+            return 'uuid-' + Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 9);
+        }
+
+        // Helper: Calculate Business Hours (M-F, 8 hours/day roughly)
+        function calculateBusinessHours(startDate, endDate) {
+            let minutes = 0;
+            // Defensive check
+            if (!startDate || !endDate) return 0;
+            
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            if (start >= end) return 0;
+
+            // If duration is extremely long (e.g. > 1 year), return 0 to prevent browser hang
+            if ((end - start) > 31536000000) return 0; 
+
+            let ptr = new Date(start);
+
+            // Iterate by hour for performance (vs minute)
+            while (ptr < end) {
+                const day = ptr.getDay();
+                const hour = ptr.getHours();
+                
+                // Assume 09:00 to 17:00 is working window (8 hours)
+                // 0=Sun, 6=Sat
+                if (day !== 0 && day !== 6) {
+                    if (hour >= 9 && hour < 18) {
+                        minutes += 60;
+                    }
+                }
+                
+                // Advance 1 hour
+                ptr.setHours(ptr.getHours() + 1);
+                ptr.setMinutes(0);
+                ptr.setSeconds(0);
+            }
+            
+            return parseFloat((minutes / 60).toFixed(2));
+        }
+
+        function showAlert(message) {
+            alert(message);
+        }
+
+        let headerClickTimer = null;
+        function handleHeaderClick(singleFn, toggleId) {
+            if (headerClickTimer) {
+                clearTimeout(headerClickTimer);
+                headerClickTimer = null;
+                if(typeof toggleId === 'function') {
+                    toggleId();
+                } else if(toggleId) {
+                    toggleElement(toggleId);
+                }
+            } else {
+                headerClickTimer = setTimeout(() => {
+                    headerClickTimer = null;
+                    if(singleFn) singleFn();
+                }, 250);
+            }
+        }
+
+        function toggleElement(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('hidden');
+        }
+
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('open');
+        }
+
+        // --- GLOBAL VARIABLES (Dashboard) ---
+        let milestones = [];
+        let userStories = [];
+        let bugs = []; // Added for Bugs Tracker
+        let blockers = [];
+        let kpiData = [];
+        let taskDisciplines = [
+            { discipline: 'DMT', totalTasks: 0, openTasks: 0, closedTasks: 0, holdTasks: 0, grandTotal: 0 },
+            { discipline: 'Tech', totalTasks: 0, openTasks: 0, closedTasks: 0, holdTasks: 0, grandTotal: 0 },
+            { discipline: 'Content Mgmt.', totalTasks: 0, openTasks: 0, closedTasks: 0, holdTasks: 0, grandTotal: 0 },
+            { discipline: 'QA', totalTasks: 0, openTasks: 0, closedTasks: 0, holdTasks: 0, grandTotal: 0 },
+        ];
+        
+        let pendingDisciplineData = []; 
+        let profileToDisciplineMap = {}; 
+        let l2Columns = [{id:'c1',name:'Col 1'}, {id:'c2',name:'Col 2'}, {id:'c3',name:'Col 3'}];
+        let l2Data = {
+            'DMT': [], 'Tech': [], 'Content Mgmt.': [], 'QA': []
+        };
+        
+        let tempAdoTasks = [];
+        let expandedDiscipline = 'ALL';
+        let activeUsStage = 'New';
+        let activeBugStage = 'New'; // Added for Bugs Tracker
+        let bauData = { totalTickets: 0, withinSLA: 0, breachedSLA: 0, slaPercentage: 0 };
+        let showTrackerDetails = false;
+        let showL2Details = false;
+        let discModalTab = 'L1';
+        const usStages = ['New', 'Development', 'Authoring', 'IT UAT', 'Business UAT', 'Closed'];
+        const bugStages = ['New', 'Active', 'Resolved', 'Hold', 'Closed']; // Added for Bugs Tracker
+        let savedSummaryText = null;
+        let adoSyncSource = null;
+
+        // --- REPORTING LOGIC ---
+        const reportSections = [
+            { id: 'summary-section', label: 'Overall Summary' },
+            { id: 'section-milestones', label: 'Project Milestones' },
+            { id: 'section-discipline', label: 'Task Discipline' },
+            { id: 'section-user-stories', label: 'User Stories' },
+            { id: 'section-bugs', label: 'Bugs Tracker' }, // Added to reporting
+            { id: 'section-blockers', label: 'Active Blockers' },
+            { id: 'section-kpi', label: 'KPIs' },
+            { id: 'section-bau', label: 'BAU Update' }
+        ];
+
+        function openReportModal() {
+            const container = document.getElementById('report-toggles');
+            container.innerHTML = reportSections.map(s => {
+                const el = document.getElementById(s.id);
+                const isHidden = el ? el.classList.contains('hidden-by-report') : false;
+                return `
+                    <label class="flex items-center justify-between p-2 rounded hover:bg-gray-50 border border-transparent hover:border-gray-200 cursor-pointer transition">
+                        <span class="text-sm font-medium text-gray-700">${s.label}</span>
+                        <input type="checkbox" id="toggle-${s.id}" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" ${!isHidden ? 'checked' : ''}>
+                    </label>
+                `;
+            }).join('');
+            document.getElementById('modal-report-config').classList.add('open');
+        }
+
+        function selectAllSections(select) {
+            reportSections.forEach(s => {
+                const cb = document.getElementById(`toggle-${s.id}`);
+                if(cb) cb.checked = select;
+            });
+        }
+
+        function applyReportView() {
+            reportSections.forEach(s => {
+                const cb = document.getElementById(`toggle-${s.id}`);
+                const el = document.getElementById(s.id);
+                if (el && cb) {
+                    if (cb.checked) {
+                        el.classList.remove('hidden-by-report');
+                        if (el.classList.contains('hidden') && s.id !== 'summary-section') el.classList.remove('hidden');
+                        if (s.id === 'summary-section') renderSummary(); 
+                    } else {
+                        el.classList.add('hidden-by-report');
+                        el.classList.add('hidden');
+                    }
+                }
+            });
+            closeModal('modal-report-config');
+        }
+
+        async function exportReport() {
+            const btn = document.querySelector('button[onclick="exportReport()"]');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Generating...`;
+            lucide.createIcons();
+            try {
+                await new Promise(r => setTimeout(r, 100)); // UI settle
+                const element = document.getElementById('content-build');
+                const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#f9fafb', ignoreElements: (el) => el.tagName === 'BUTTON' || el.classList.contains('no-print') });
+                const link = document.createElement('a');
+                link.download = `Executive_Report_${new Date().toISOString().split('T')[0]}.jpg`;
+                link.href = canvas.toDataURL('image/jpeg', 0.9);
+                link.click();
+            } catch (err) { console.error(err); alert("Failed: " + err.message); } 
+            finally { btn.innerHTML = originalContent; lucide.createIcons(); }
+        }
+
+        // --- DASHBOARD TABS ---
+        function switchTab(t) {
+  // Tabs removed: keep Build view only
+  try {
+    const b=document.getElementById('content-build');
+    if (b) b.classList.remove('hidden');
+  } catch(e) {}
+}
+
+function gh6GetDashFromUrl() {
+    try { return new URL(window.location.href).searchParams.get(GH6_PARAM); } catch { return null; }
+}
+function gh6SetDashInUrl(id) {
+    try {
+        const u = new URL(window.location.href);
+        u.searchParams.set(GH6_PARAM, id);
+        window.history.replaceState({}, '', u.toString());
+    } catch {}
+}
+
+async function gh6Request(method, params={}, body=null) {
+    const u = new URL(GH6_ENDPOINT, window.location.origin);
+    Object.entries(params).forEach(([k,v]) => { if (v!==undefined && v!==null) u.searchParams.set(k, String(v)); });
+    const opt = { method, headers: { 'Accept':'application/json' } };
+    if (body !== null) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    const r = await fetch(u.toString(), opt);
+    const raw = await r.text();
+    let data = {};
+    try { data = JSON.parse(raw || '{}'); } catch(e) { data = { error:'Invalid JSON', details: (raw||'').slice(0,250) }; }
+    if (!r.ok) throw new Error(`${method} ${r.status} ${r.statusText}: ${raw}`);
+    if (data.error) throw new Error(data.error + (data.details ? (' :: '+JSON.stringify(data.details)) : ''));
+    return data;
+}
+
+const gh6List = () => gh6Request('GET', { list: 1 });
+const gh6Get = (id) => gh6Request('GET', { dash: id });
+const gh6Save = (id, state) => gh6Request('POST', { dash: id }, { state });
+const gh6Delete = (id) => gh6Request('DELETE', { dash: id });
+
+// Prevent race conditions when switching dashboards quickly
+let gh6LoadSeq = 0;
+
+// Build a stable serialization of state (removes volatile fields like capturedAt)
+function wsStableSerializeState(state) {
+    try {
+        const copy = JSON.parse(JSON.stringify(state || {}));
+        // capturedAt changes on every wsGetState() call; remove it to avoid false "dirty" detection
+        if (copy && 'capturedAt' in copy) delete copy.capturedAt;
+        return JSON.stringify(copy);
+    } catch(e) {
+        // Last-resort fallback
+        try {
+            const s = state || {};
+            if (s && 'capturedAt' in s) delete s.capturedAt;
+            return JSON.stringify(s);
+        } catch(_) {
+            return '';
+        }
+    }
+}
+
+// Sanitize older/invalid stored states (keeps UI stable)
+function gh6SanitizeState(state) {
+    if (!state || typeof state !== 'object') return gh6BlankState();
+    state.executive = state.executive || {};
+    state.headless = state.headless || {};
+
+    // L2 Detailed Activities shape
+    const needL2Object = (!state.executive.l2Data || typeof state.executive.l2Data !== 'object' || Array.isArray(state.executive.l2Data));
+    if (needL2Object) {
+        state.executive.l2Data = { 'DMT': [], 'Tech': [], 'Content Mgmt.': [], 'QA': [] };
+    } else {
+        ['DMT','Tech','Content Mgmt.','QA'].forEach(k => { if (!Array.isArray(state.executive.l2Data[k])) state.executive.l2Data[k] = []; });
+    }
+    if (!Array.isArray(state.executive.l2Columns) || state.executive.l2Columns.length === 0) {
+        state.executive.l2Columns = [ {id:'c1',name:'Col 1'},{id:'c2',name:'Col 2'},{id:'c3',name:'Col 3'} ];
+    }
+
+    // L1 disciplines
+    if (!Array.isArray(state.executive.taskDisciplines) || state.executive.taskDisciplines.length === 0) {
+        state.executive.taskDisciplines = [
+            { discipline: 'DMT', totalTasks: 0, openTasks: 0, closedTasks: 0, holdTasks: 0, grandTotal: 0 },
+            { discipline: 'Tech', totalTasks: 0, openTasks: 0, closedTasks: 0, holdTasks: 0, grandTotal: 0 },
+            { discipline: 'Content Mgmt.', totalTasks: 0, openTasks: 0, closedTasks: 0, holdTasks: 0, grandTotal: 0 },
+            { discipline: 'QA', totalTasks: 0, openTasks: 0, closedTasks: 0, holdTasks: 0, grandTotal: 0 }
+        ];
+    }
+
+    // L3 tasks
+    if (!Array.isArray(state.executive.l3Data)) state.executive.l3Data = [];
+
+    // BAU
+    if (!state.executive.bauData || typeof state.executive.bauData !== 'object') {
+        state.executive.bauData = { totalTickets:0, withinSLA:0, breachedSLA:0, slaPercentage:0 };
+    }
+
+    return state;
+}
+
+// ---------- SAVE CONFIRM MODAL (GitHub Save) ----------
+let __wsSaveModalResolver = null;
+
+function wsIsDirty() {
+    try {
+        const ser = wsStableSerializeState(wsGetState());
+        // If wsLastSerialized not initialized yet, treat as not dirty
+        return (wsLastSerialized !== null && ser !== wsLastSerialized);
+    } catch { return false; }
+}
+
+function wsOpenSaveConfirmModal(opts = {}) {
+    const mode = opts.mode || 'manual'; // manual | switch
+    const dashboardName = opts.dashboardName || '';
+
+    // If modal is missing, fallback to native confirm
+    const modal = document.getElementById('modal-save-confirm');
+    if (!modal) {
+        const ok = window.confirm(mode === 'switch'
+            ? `You have unsaved changes in "${dashboardName || 'dashboard'}". Save before switching?`
+            : `Save "${dashboardName || 'dashboard'}" to GitHub?`);
+        return Promise.resolve(ok ? 'save' : 'cancel');
+    }
+
+    // Populate summary
+    const nameEl = document.getElementById('save-confirm-dash');
+    const ctxEl  = document.getElementById('save-confirm-context');
+    const detailsEl = document.getElementById('save-confirm-details');
+
+    if (nameEl) nameEl.textContent = dashboardName || '(Unnamed)';
+
+    const state = (typeof wsGetState === 'function') ? wsGetState() : { executive:{} };
+    const ex = (state && state.executive) ? state.executive : {};
+    const counts = {
+        milestones: (ex.milestones || []).length,
+        disciplines: (ex.taskDisciplines || []).length,
+        l2rows: (() => {
+            const l2 = ex.l2Data || {};
+            if (!l2 || typeof l2 !== 'object' || Array.isArray(l2)) return 0;
+            return Object.values(l2).reduce((a,arr) => a + (Array.isArray(arr) ? arr.length : 0), 0);
+        })(),
+        l3: (ex.l3Data || []).length,
+        stories: (ex.userStories || []).length,
+        bugs: (ex.bugs || []).length,
+        blockers: (ex.blockers || []).length,
+        kpis: (ex.kpiData || []).length
+    };
+
+    if (detailsEl) {
+        detailsEl.innerHTML = `
+            <div class="grid grid-cols-2 gap-2 text-xs text-gray-700">
+                <div class="bg-gray-50 rounded p-2 border">Milestones: <b>${counts.milestones}</b></div>
+                <div class="bg-gray-50 rounded p-2 border">L1 Disciplines: <b>${counts.disciplines}</b></div>
+                <div class="bg-gray-50 rounded p-2 border">L2 Detailed Rows: <b>${counts.l2rows}</b></div>
+                <div class="bg-gray-50 rounded p-2 border">L3 Tasks: <b>${counts.l3}</b></div>
+                <div class="bg-gray-50 rounded p-2 border">User Stories: <b>${counts.stories}</b></div>
+                <div class="bg-gray-50 rounded p-2 border">Bugs: <b>${counts.bugs}</b></div>
+                <div class="bg-gray-50 rounded p-2 border">Blockers: <b>${counts.blockers}</b></div>
+                <div class="bg-gray-50 rounded p-2 border">KPIs: <b>${counts.kpis}</b></div>
+            </div>
+        `;
+    }
+
+    // Context / buttons
+    const btnSave = document.getElementById('save-confirm-btn-save');
+    const btnSkip = document.getElementById('save-confirm-btn-skip');
+    const btnCancel = document.getElementById('save-confirm-btn-cancel');
+
+    if (ctxEl) {
+        ctxEl.textContent = (mode === 'switch')
+            ? 'You have unsaved changes. What do you want to do before switching dashboards?'
+            : 'Please verify the dashboard summary before saving to GitHub.';
+    }
+
+    if (btnSkip) btnSkip.classList.toggle('hidden', mode !== 'switch');
+
+    modal.classList.add('open');
+    try { if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons(); } catch(e) {}
+
+    return new Promise((resolve) => {
+        __wsSaveModalResolver = resolve;
+        if (btnSave) btnSave.onclick = () => wsCloseSaveConfirmModal('save');
+        if (btnSkip) btnSkip.onclick = () => wsCloseSaveConfirmModal('skip');
+        if (btnCancel) btnCancel.onclick = () => wsCloseSaveConfirmModal('cancel');
+        window.onkeydown = (ev) => { if (ev.key === 'Escape') wsCloseSaveConfirmModal('cancel'); };
+    });
+}
+
+function wsCloseSaveConfirmModal(result) {
+    const modal = document.getElementById('modal-save-confirm');
+    if (modal) modal.classList.remove('open');
+    try { window.onkeydown = null; } catch(e) {}
+    const r = __wsSaveModalResolver;
+    __wsSaveModalResolver = null;
+    if (typeof r === 'function') r(result);
+}
+
+
+// blank state builder - clears ALL major collections
+function gh6BlankState(name) {
+    const st = (typeof wsGetState === 'function') ? wsGetState() : { executive:{}, headless:{} };
+    st.executive = st.executive || {};
+    st.headless = st.headless || {};
+
+    // Reset major collections
+    st.executive.milestones = [];
+    st.executive.userStories = [];
+    st.executive.bugs = [];
+    st.executive.blockers = [];
+    st.executive.kpiData = [];
+    st.executive.pendingDisciplineData = [];
+    st.executive.profileToDisciplineMap = {};
+    st.executive.tempAdoTasks = [];
+
+    // IMPORTANT: Keep shapes consistent (fixes "All Detailed Activities" intermittently breaking)
+    st.executive.l2Columns = [
+        { id:'c1', name:'Col 1' },
+        { id:'c2', name:'Col 2' },
+        { id:'c3', name:'Col 3' }
+    ];
+    st.executive.l2Data = {
+        'DMT': [],
+        'Tech': [],
+        'Content Mgmt.': [],
+        'QA': []
+    };
+
+    st.executive.l3Data = [];
+    st.executive.taskDisciplines = [
+        { discipline: 'DMT', totalTasks: 0, openTasks: 0, closedTasks: 0, holdTasks: 0, grandTotal: 0 },
+        { discipline: 'Tech', totalTasks: 0, openTasks: 0, closedTasks: 0, holdTasks: 0, grandTotal: 0 },
+        { discipline: 'Content Mgmt.', totalTasks: 0, openTasks: 0, closedTasks: 0, holdTasks: 0, grandTotal: 0 },
+        { discipline: 'QA', totalTasks: 0, openTasks: 0, closedTasks: 0, holdTasks: 0, grandTotal: 0 }
+    ];
+
+    st.executive.bauData = { totalTickets:0, withinSLA:0, breachedSLA:0, slaPercentage:0 };
+    st.executive.expandedDiscipline = 'ALL';
+    st.executive.activeUsStage = 'New';
+    st.executive.activeBugStage = 'New';
+    st.executive.showTrackerDetails = false;
+    st.executive.showL2Details = false;
+    st.executive.discModalTab = 'L1';
+    st.executive.savedSummaryText = null;
+    st.executive.adoSyncSource = null;
+    st.executive.adoConfig = { organization:'', project:'', queryId:'' };
+
+    st.headless.loadedTicketData = null;
+
+    st.__meta = st.__meta || {};
+    st.__meta.name = name || null;
+    st.__meta.createdFrom = 'blank';
+    return st;
+}
+
+// Remove clear storage
+function wsClearLocalStorage() { alert('Clear Storage is removed.'); }
+
+// Load list from GitHub and fill workspace store (keeps existing UI)
+async function gh6SyncListIntoStore() {
+    const store = wsLoadStore();
+    const data = await gh6List();
+    const list = Array.isArray(data.dashboards) ? data.dashboards : [];
+    // keep existing store object but replace workspaces
+    store.workspaces = {};
+    list.forEach(d => {
+        store.workspaces[d.id] = {
+            id: d.id,
+            name: d.name || d.id,
+            createdAt: d.createdAt || d.updatedAt || new Date().toISOString(),
+            updatedAt: d.updatedAt || new Date().toISOString(),
+            state: null
+        };
+    });
+    wsSaveStore(store);
+    wsRefreshSelect();
+    return list;
+}
+
+// Override select workspace: full reset + fetch (race-safe)
+async function wsSelectWorkspace(id, { saveCurrent=true } = {}) {
+    if (!id || id === wsCurrentId) return;
+
+    // Ask ONLY if there are unsaved changes
+    if (saveCurrent && wsCurrentId && wsIsDirty()) {
+        let currentName = '';
+        try {
+            const st = wsLoadStore();
+            currentName = (st.workspaces && st.workspaces[wsCurrentId] && st.workspaces[wsCurrentId].name) ? st.workspaces[wsCurrentId].name : wsCurrentId;
+        } catch(e) { currentName = wsCurrentId; }
+
+        const decision = await wsOpenSaveConfirmModal({ mode:'switch', dashboardName: currentName });
+        if (decision === 'cancel') return;          // abort switching
+        if (decision === 'save') {
+            try { await wsSaveNow({ prompt:false }); } catch(e) { console.warn('save failed, continuing switch', e); }
+        }
+        // decision === 'skip' => continue without saving
+    }
+
+    const seq = ++gh6LoadSeq;
+
+    wsCurrentId = id;
+    gh6SetDashInUrl(id);
+
+    // Reset UI immediately
+    gh6Overlay(true, 'Resetting view...');
+    try {
+        const blank = gh6BlankState();
+        wsApplyState(blank, { silent:false });
+    } catch(e) {}
+
+    // Fetch latest from GitHub and apply
+    try {
+        gh6Overlay(true, 'Fetching from GitHub...');
+        const data = await gh6Get(id);
+        if (seq !== gh6LoadSeq || wsCurrentId !== id) return; // ignore stale response
+
+        const state = data.state ? gh6SanitizeState(data.state) : null;
+        if (state) {
+            wsApplyState(state, { silent:false });
+            wsLastSerialized = wsStableSerializeState(wsGetState());
+            wsSetIndicator('Loaded ✓', true);
+
+            // Cache locally so if fetch fails later, we can still restore
+            try {
+                const store = wsLoadStore();
+                if (store.workspaces && store.workspaces[id]) {
+                    store.workspaces[id].state = state;
+                    store.workspaces[id].updatedAt = new Date().toISOString();
+                    wsSaveStore(store);
+                }
+            } catch(e) {}
+        } else {
+            wsLastSerialized = wsStableSerializeState(wsGetState());
+            wsSetIndicator('Empty dashboard', true);
+        }
+    } catch(e) {
+        console.error(e);
+        // Fallback to cached state if available
+        try {
+            const store = wsLoadStore();
+            const cached = store.workspaces && store.workspaces[id] ? store.workspaces[id].state : null;
+            if (cached) {
+                wsApplyState(gh6SanitizeState(cached), { silent:false });
+                wsLastSerialized = wsStableSerializeState(wsGetState());
+                wsSetIndicator('Loaded (cached) ✓', true);
+            } else {
+                wsSetIndicator('Load failed (see console)', false);
+            }
+        } catch(_) {
+            wsSetIndicator('Load failed (see console)', false);
+        }
+    } finally {
+        if (seq === gh6LoadSeq) gh6Overlay(false);
+    }
+
+    wsRefreshSelect();
+}
+
+// Override save: write to GitHub (with confirm popup)
+async function wsSaveNow(opts = {}) {
+    if (wsIsApplying) return;
+    if (!wsCurrentId) return;
+
+    const shouldPrompt = (typeof opts.prompt === 'boolean') ? opts.prompt : true;
+    if (shouldPrompt) {
+        let dashName = '';
+        try {
+            const store = wsLoadStore();
+            const w = store.workspaces && store.workspaces[wsCurrentId];
+            dashName = w && w.name ? w.name : wsCurrentId;
+        } catch(e) { dashName = wsCurrentId; }
+
+        const decision = await wsOpenSaveConfirmModal({ mode:'manual', dashboardName: dashName });
+        if (decision !== 'save') {
+            wsSetIndicator('Save cancelled', false);
+            return;
+        }
+    }
+
+    return wsSaveNowToGitHub();
+}
+
+async function wsSaveNowToGitHub() {
+    const state = wsGetState();
+
+    // sync name into meta
+    try {
+        const store = wsLoadStore();
+        const w = store.workspaces && store.workspaces[wsCurrentId];
+        state.__meta = state.__meta || {};
+        if (w && w.name) state.__meta.name = w.name;
+    } catch(e) {}
+
+    wsSetIndicator('Saving...', true);
+    gh6Overlay(true, 'Saving to GitHub...');
+    try {
+        const res = await gh6Save(wsCurrentId, state);
+        if (res.commitUrl) console.log('[GitHub] Commit URL:', res.commitUrl);
+        wsLastSerialized = wsStableSerializeState(state);
+        wsSetIndicator('Saved ✓ ' + new Date().toLocaleTimeString(), true);
+
+        // refresh list + cache
+        await gh6SyncListIntoStore();
+        try {
+            const store = wsLoadStore();
+            if (store.workspaces && store.workspaces[wsCurrentId]) {
+                store.workspaces[wsCurrentId].state = gh6SanitizeState(state);
+                store.workspaces[wsCurrentId].updatedAt = new Date().toISOString();
+                wsSaveStore(store);
+            }
+        } catch(_) {}
+
+    } catch(e) {
+        console.error(e);
+        wsSetIndicator('Save failed (see console)', false);
+        throw e;
+    } finally {
+        gh6Overlay(false);
+    }
+}
+
+
+// Override create workspace: always create blank (reset) and save
+async function wsCreateWorkspace(name, baseState=null) {
+    const store = wsLoadStore();
+    const id = (typeof generateUUID === 'function') ? generateUUID() : ('ws-' + Date.now());
+    const now = new Date().toISOString();
+
+    // Build initial state
+    const initState = baseState ? wsSafeClone(baseState) : gh6BlankState(name);
+    initState.__meta = initState.__meta || {};
+    initState.__meta.name = name;
+
+    // Reset UI immediately for NEW dashboard
+    wsCurrentId = id;
+    gh6SetDashInUrl(id);
+    gh6Overlay(true, 'Creating new dashboard...');
+    wsApplyState(gh6BlankState(name), { silent:false });
+
+    // Save to GitHub
+    await gh6Save(id, initState);
+
+    // Update store + UI
+    store.workspaces[id] = { id, name, createdAt: now, updatedAt: now, state: null };
+    wsSaveStore(store);
+    wsRefreshSelect();
+    // Now load it properly (from GitHub)
+    await wsSelectWorkspace(id, { saveCurrent:false });
+    gh6Overlay(false);
+    return id;
+}
+
+// Override delete to delete from GitHub
+async function wsDeleteCurrent() {
+    if (!wsCurrentId) return;
+    const store = wsLoadStore();
+    const w = store.workspaces[wsCurrentId];
+    if (!confirm(`Delete workspace "${w ? w.name : wsCurrentId}"? This cannot be undone.`)) return;
+    gh6Overlay(true, 'Deleting from GitHub...');
+    try {
+        await gh6Delete(wsCurrentId);
+        delete store.workspaces[wsCurrentId];
+        wsSaveStore(store);
+        wsRefreshSelect();
+        const first = wsList()[0];
+        wsCurrentId = first ? first.id : null;
+        if (wsCurrentId) await wsSelectWorkspace(wsCurrentId, { saveCurrent:false });
+        else { wsApplyState(gh6BlankState(), { silent:false }); }
+    } catch(e) {
+        console.error(e);
+        wsSetIndicator('Delete failed (see console)', false);
+    } finally {
+        gh6Overlay(false);
+    }
+}
+
+// Init override: load list from GitHub, then load selected dash
+async function wsInitWorkspaceManager() {
+    // hook select change like original
+    const select = document.getElementById('ws-select');
+    if (select) {
+        select.addEventListener('change', (e) => wsSelectWorkspace(e.target.value));
+    }
+    // hook import
+    const importEl = document.getElementById('ws-import-file');
+    if (importEl) {
+        importEl.addEventListener('change', async (e) => {
+            const f = e.target.files && e.target.files[0];
+            if (f) wsImportFile(f);
+            e.target.value = '';
+        });
+    }
+
+    gh6Overlay(true, 'Loading dashboards list...');
+    let dashboards = [];
+    try {
+        dashboards = await gh6SyncListIntoStore();
+    } catch(e) {
+        console.error(e);
+    }
+
+    // pick dash from URL else first
+    const urlId = gh6GetDashFromUrl();
+    const store = wsLoadStore();
+    const first = dashboards[0] ? dashboards[0].id : (wsList()[0] ? wsList()[0].id : null);
+    wsCurrentId = (urlId && store.workspaces[urlId]) ? urlId : first;
+
+    if (wsCurrentId) {
+        const sel = document.getElementById('ws-select');
+        if (sel) sel.value = wsCurrentId;
+        await wsSelectWorkspace(wsCurrentId, { saveCurrent:false });
+    } else {
+        // none exists: create default
+        await wsCreateWorkspace('Default', null);
+    }
+
+    gh6Overlay(false);
+    wsStartAutoSave();
+}
+
+// Auto-save disabled: no periodic GitHub commits
+function wsStartAutoSave() {
+    try { if (wsAutoSaveTimer) clearInterval(wsAutoSaveTimer); } catch(e) {}
+    wsAutoSaveTimer = null;
+}
+
+
+// Auto-save: keep but it will call wsSaveNow (GitHub)
+
+
+
+// Ensure Workspace modal primary action works with async GitHub create/select
+async function wsModalPrimary() {
+    const name = (document.getElementById('ws-name').value || '').trim();
+    if (!name) { showAlert('Please enter a POD/Project name.'); return; }
+
+    if (wsModalMode === 'create') {
+        try {
+            await wsCreateWorkspace(name);
+            wsSetIndicator(`Created: ${name}`, true);
+        } catch(e) {
+            console.error(e);
+            wsSetIndicator('Create failed (see console)', false);
+        }
+    } else if (wsModalMode === 'rename') {
+        const store = wsLoadStore();
+        if (!wsModalTargetId || !store.workspaces[wsModalTargetId]) return;
+        store.workspaces[wsModalTargetId].name = name;
+        store.workspaces[wsModalTargetId].updatedAt = new Date().toISOString();
+        wsSaveStore(store);
+        wsRefreshSelect();
+        wsSetIndicator(`Renamed: ${name}`, true);
+    } else if (wsModalMode === 'duplicate') {
+        const store = wsLoadStore();
+        if (!wsModalTargetId || !store.workspaces[wsModalTargetId]) return;
+        const base = store.workspaces[wsModalTargetId];
+        try {
+            await wsCreateWorkspace(name, base.state);
+            wsSetIndicator(`Duplicated: ${name}`, true);
+        } catch(e) {
+            console.error(e);
+            wsSetIndicator('Duplicate failed (see console)', false);
+        }
+    }
+
+    wsCloseModal();
+}
+</script>
+
+    <!-- Workspace Modal (NEW) -->
+    <div id="ws-modal" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 animate-fade-in">
+            <div class="p-4 border-b flex items-center justify-between">
+                <h3 id="ws-modal-title" class="text-lg font-semibold text-gray-900">Create Workspace</h3>
+                <button type="button" onclick="wsCloseModal()" class="p-2 rounded-md hover:bg-gray-100" aria-label="Close">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">POD / Project Name <span class="text-red-500">*</span></label>
+                    <input id="ws-name" type="text" placeholder="e.g., POD-Alpha or Project Phoenix" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <p class="text-xs text-gray-500 mt-1">This name will be used to identify and switch dashboards.</p>
+                </div>
+                <div id="ws-modal-hint" class="text-xs text-gray-500"></div>
+            </div>
+            <div class="p-4 border-t flex justify-end gap-2">
+                <button type="button" onclick="wsCloseModal()" class="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200">Cancel</button>
+                <button type="button" id="ws-modal-primary" onclick="wsModalPrimary()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
