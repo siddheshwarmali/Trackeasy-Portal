@@ -1,0 +1,181 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Trackeasy Portal — User Manager</title>
+  <link rel="stylesheet" href="/app.css"/>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="topbar">
+        <div>
+          <h1>User Manager</h1>
+          <p id="who" class="small">Loading user…</p>
+        </div>
+        <div class="actions">
+          <a class="btn2" href="/index.html">Home</a>
+          <button id="logout" class="danger">Logout</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <h2>Create / Update User</h2>
+          <label>Name</label>
+          <input id="name" placeholder="Full name"/>
+          <label>Email</label>
+          <input id="email" type="email" placeholder="user@example.com"/>
+          <label>Role</label>
+          <select id="role">
+            <option value="user">user</option>
+            <option value="admin">admin</option>
+          </select>
+          <label>Password (set or reset)</label>
+          <input id="password" type="password" placeholder="Optional; set to reset"/>
+          <div class="actions" style="margin-top:12px">
+            <button id="save" class="btn">Save</button>
+            <button id="clear" class="btn2" type="button">Clear</button>
+          </div>
+          <div id="t" class="toast"></div>
+          <p class="small" style="margin-top:10px">Only admins can access this page.</p>
+        </div>
+
+        <div class="col">
+          <h2>Users</h2>
+          <button id="refresh" class="btn2">Refresh</button>
+          <div style="overflow:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th><th>Email</th><th>Role</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script type="module">
+  import { api, requireAuth, toast } from '/client.js';
+
+  const who = document.getElementById('who');
+  const logout = document.getElementById('logout');
+  const rows = document.getElementById('rows');
+
+  const name = document.getElementById('name');
+  const email = document.getElementById('email');
+  const role = document.getElementById('role');
+  const password = document.getElementById('password');
+  const save = document.getElementById('save');
+  const clear = document.getElementById('clear');
+  const refresh = document.getElementById('refresh');
+
+  const me = await requireAuth('/login.html');
+  if(me){
+    who.textContent = `Signed in as ${me.user.name} (${me.user.email}) — role: ${me.user.role}`;
+    if(me.user.role !== 'admin'){
+      toast('t','Access denied: Admin only', false);
+      setTimeout(()=>location.href='/index.html', 700);
+    }
+  }
+
+  function fillForm(u){
+    name.value = u.name || '';
+    email.value = u.email || '';
+    role.value = u.role || 'user';
+    password.value = '';
+  }
+
+  function clearForm(){
+    name.value=''; email.value=''; role.value='user'; password.value='';
+  }
+
+  async function load(){
+    rows.innerHTML = '<tr><td colspan="4" class="small">Loading…</td></tr>';
+    try{
+      const data = await api('/api/users');
+      const users = data.users || [];
+      rows.innerHTML = '';
+      for(const u of users){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(u.name||'')}</td>
+          <td>${escapeHtml(u.email||'')}</td>
+          <td>${escapeHtml(u.role||'user')}</td>
+          <td>
+            <div class="actions">
+              <button class="btn2" data-edit="${u.email}">Edit</button>
+              <button class="danger" data-del="${u.email}">Delete</button>
+            </div>
+          </td>
+        `;
+        rows.appendChild(tr);
+      }
+
+      rows.querySelectorAll('[data-edit]').forEach(b=>{
+        b.addEventListener('click', ()=>{
+          const em = b.getAttribute('data-edit');
+          const u = users.find(x=>x.email===em);
+          if(u) fillForm(u);
+        });
+      });
+      rows.querySelectorAll('[data-del]').forEach(b=>{
+        b.addEventListener('click', async ()=>{
+          const em = b.getAttribute('data-del');
+          if(!confirm('Delete user: '+em+' ?')) return;
+          try{
+            await api('/api/users?email='+encodeURIComponent(em), { method:'DELETE' });
+            toast('t','Deleted: '+em, true);
+            await load();
+          }catch(e){ toast('t', e.message, false); }
+        });
+      });
+
+      if(users.length===0) rows.innerHTML = '<tr><td colspan="4" class="small">No users</td></tr>';
+    }catch(e){
+      toast('t', e.message, false);
+      rows.innerHTML = '<tr><td colspan="4" class="small">Failed to load</td></tr>';
+    }
+  }
+
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+
+  save.addEventListener('click', async ()=>{
+    save.disabled = true;
+    try{
+      const payload = {
+        name: name.value.trim(),
+        email: email.value.trim(),
+        role: role.value,
+        password: password.value || undefined
+      };
+      if(!payload.name || !payload.email) throw new Error('Name and email required');
+      await api('/api/users', { method:'POST', body: JSON.stringify(payload) });
+      toast('t','Saved user: '+payload.email, true);
+      clearForm();
+      await load();
+    }catch(e){
+      toast('t', e.message, false);
+    }finally{ save.disabled=false; }
+  });
+
+  clear.addEventListener('click', clearForm);
+  refresh.addEventListener('click', load);
+
+  logout.addEventListener('click', async ()=>{
+    try{ await api('/api/auth/logout', { method:'POST' }); location.href='/login.html'; }
+    catch(e){ toast('t', e.message, false); }
+  });
+
+  await load();
+</script>
+</body>
+</html>
