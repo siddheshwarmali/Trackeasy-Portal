@@ -1,0 +1,83 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Trackeasy Portal — Login</title>
+  <link rel="stylesheet" href="/app.css"/>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="topbar">
+        <div>
+          <h1>Trackeasy Portal</h1>
+          <p>Login to continue</p>
+        </div>
+        <div class="badge">Vercel + GitHub JSON DB</div>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <h2>Sign in</h2>
+          <label>Email</label>
+          <input id="email" type="email" placeholder="admin@example.com" autocomplete="username"/>
+          <label>Password</label>
+          <input id="password" type="password" placeholder="••••••••" autocomplete="current-password"/>
+          <div class="actions" style="margin-top:12px">
+            <button id="btn" class="btn">Login</button>
+            <button id="demo" class="btn2" type="button">Use Demo Admin</button>
+          </div>
+          <div id="t" class="toast"></div>
+          <p class="small" style="margin-top:12px">
+            Default admin: <b>admin@example.com</b> / <b>Admin@123</b>
+          </p>
+        </div>
+        <div class="col">
+          <h2>What you can do</h2>
+          <ul>
+            <li>Create/Update/Delete users (Admin)</li>
+            <li>Role-based access</li>
+            <li>Data stored in GitHub repo file <code>db/users.json</code></li>
+          </ul>
+          <p class="small">Tip: Configure Vercel Environment Variables before production.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script type="module">
+  import { api, toast } from '/client.js';
+
+  const email = document.getElementById('email');
+  const password = document.getElementById('password');
+  const btn = document.getElementById('btn');
+  const demo = document.getElementById('demo');
+
+  demo.addEventListener('click', () => {
+    email.value = 'admin@example.com';
+    password.value = 'Admin@123';
+  });
+
+  async function login(){
+    btn.disabled = true;
+    try{
+      await api('/api/auth/login', {
+        method:'POST',
+        body: JSON.stringify({ email: email.value.trim(), password: password.value })
+      });
+      toast('t','Login successful. Redirecting…', true);
+      setTimeout(() => location.href = '/index.html', 450);
+    }catch(e){
+      toast('t', e.message, false);
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  btn.addEventListener('click', login);
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Enter') login(); });
+</script>
+</body>
+</html>
