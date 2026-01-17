@@ -1,7 +1,12 @@
+
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "cleanUrls": false,
+  "trailingSlash": false,
+  "redirects": [
+    { "source": "/index.html", "destination": "/", "permanent": true }
+  ],
   "functions": {
-    "api/**/*.js": {
-      "runtime": "nodejs24.x"
-    }
+    "api/**/*.js": { "maxDuration": 30 }
   }
 }
