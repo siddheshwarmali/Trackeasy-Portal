@@ -1,83 +1,93 @@
-'use strict';
 
-const { verify, parseCookies, json, readJson } = require('./_lib/auth');
-const { ghDashDir, ghGetContent, ghPutFile, ghDeleteFile, readJsonFile } = require('./_lib/github');
+import { parseCookies, verifySession } from './_lib/auth.js';
+import { readJson, writeJson, nowIso, uuid } from './_lib/github.js';
 
-const INDEX_FILE = '_index.json';
+const STATE_PATH = process.env.GITHUB_STATE_PATH || 'data/dashboards.json';
 
-function getSession(req){
-  const secret = process.env.AUTH_SECRET || 'dev-secret-change-me';
-  const cookies = parseCookies(req);
-  return verify(cookies.tw_session, secret);
+function requireAuth(req) {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) throw Object.assign(new Error('Missing env var: AUTH_SECRET'), { status: 500 });
+  const token = parseCookies(req).session;
+  if (!token) throw Object.assign(new Error('Not authenticated'), { status: 401 });
+  const payload = verifySession(token, secret);
+  if (!payload) throw Object.assign(new Error('Invalid session'), { status: 401 });
+  return payload;
 }
 
-function canWrite(role){ return role === 'admin' || role === 'creator'; }
+function canWrite(role) {
+  return role === 'admin' || role === 'creator';
+}
 
-module.exports = async (req,res)=>{
-  try{
-    const session = getSession(req);
-    if(!session) return json(res,401,{error:'Not authenticated'});
+export default async function handler(req, res) {
+  try {
+    const me = requireAuth(req);
+    const role = me.role || 'viewer';
 
-    const url = new URL(req.url, 'http://localhost');
-    const dash = url.searchParams.get('dash');
-    const list = url.searchParams.get('list');
+    const listFlag = req.query?.list;
+    const dashId = req.query?.dash;
 
-    const dir = ghDashDir();
-    const indexPath = `${dir}/${INDEX_FILE}`;
+    const { json, sha } = await readJson(STATE_PATH, { dashboards: {} });
+    const store = (json && typeof json === 'object') ? json : { dashboards: {} };
+    if (!store.dashboards || typeof store.dashboards !== 'object') store.dashboards = {};
 
-    if(req.method==='GET' && list){
-      const idx = await readJsonFile(indexPath);
-      if(idx && Array.isArray(idx.dashboards)) return json(res,200,{dashboards: idx.dashboards});
-      const listing = await ghGetContent(dir);
-      const dashboards = Array.isArray(listing) ? listing
-        .filter(x=>x.type==='file' && x.name.endsWith('.json') && x.name!==INDEX_FILE)
-        .map(x=>({ id:x.name.replace(/\.json$/,''), name:x.name.replace(/\.json$/,''), createdAt:null, updatedAt:null })) : [];
-      return json(res,200,{dashboards});
+    if (req.method === 'GET') {
+      if (listFlag) {
+        const dashboards = Object.values(store.dashboards).map(d => ({
+          id: d.id,
+          name: d.name || d.id,
+          createdAt: d.createdAt || d.updatedAt || '',
+          updatedAt: d.updatedAt || ''
+        })).sort((a,b) => (b.updatedAt||'').localeCompare(a.updatedAt||''));
+        return res.status(200).json({ dashboards });
+      }
+
+      if (!dashId) return res.status(400).json({ error: 'dash is required' });
+      const d = store.dashboards[dashId];
+      if (!d) return res.status(200).json({ id: dashId, state: null, name: dashId });
+      return res.status(200).json({ id: d.id, name: d.name || d.id, state: d.state || null, createdAt: d.createdAt, updatedAt: d.updatedAt });
     }
 
-    if(req.method==='GET' && dash){
-      const data = await readJsonFile(`${dir}/${dash}.json`);
-      if(!data) return json(res,404,{error:'Dashboard not found'});
-      return json(res,200,{id:dash, state:data});
+    if (req.method === 'POST') {
+      if (!canWrite(role)) return res.status(403).json({ error: 'Forbidden: creator/admin only' });
+      if (!dashId) return res.status(400).json({ error: 'dash is required' });
+
+      let body = req.body;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { body = {}; }
+      }
+      const state = body?.state;
+      const nameFromBody = body?.name;
+      const now = nowIso();
+
+      const prev = store.dashboards[dashId];
+      const createdAt = prev?.createdAt || now;
+      const name = nameFromBody || (state && state.__meta && state.__meta.name) || prev?.name || dashId;
+
+      store.dashboards[dashId] = {
+        id: dashId,
+        name,
+        createdAt,
+        updatedAt: now,
+        state: state || null
+      };
+
+      await writeJson(STATE_PATH, store, sha, `Save dashboard ${dashId}`);
+      return res.status(200).json({ ok: true, id: dashId, updatedAt: now });
     }
 
-    if(req.method==='POST' && dash){
-      if(!canWrite(session.role)) return json(res,403,{error:'Forbidden'});
-      let body={};
-      try{ body = await readJson(req);}catch(e){ return json(res,400,{error:e.message}); }
-      const state = body && body.state ? body.state : null;
-      if(!state) return json(res,400,{error:'Missing body.state'});
-
-      const now = new Date().toISOString();
-      const name = (state.__meta && state.__meta.name) ? state.__meta.name : dash;
-      state.__meta = { ...(state.__meta||{}), id:dash, name, updatedAt:now, savedBy: session.userId || 'unknown' };
-
-      await ghPutFile(`${dir}/${dash}.json`, JSON.stringify(state, null, 2), `Save dashboard ${dash}`);
-
-      const idx = (await readJsonFile(indexPath)) || { dashboards: [] };
-      const arr = Array.isArray(idx.dashboards) ? idx.dashboards : [];
-      const existing = arr.find(d=>d.id===dash);
-      if(existing){ existing.name=name; existing.updatedAt=now; }
-      else { arr.push({ id:dash, name, createdAt:now, updatedAt:now }); }
-      idx.dashboards = arr;
-      await ghPutFile(indexPath, JSON.stringify(idx, null, 2), 'Update dashboard index');
-
-      return json(res,200,{ok:true, id:dash});
+    if (req.method === 'DELETE') {
+      if (!canWrite(role)) return res.status(403).json({ error: 'Forbidden: creator/admin only' });
+      if (!dashId) return res.status(400).json({ error: 'dash is required' });
+      if (store.dashboards[dashId]) delete store.dashboards[dashId];
+      await writeJson(STATE_PATH, store, sha, `Delete dashboard ${dashId}`);
+      return res.status(200).json({ ok: true });
     }
 
-    if(req.method==='DELETE' && dash){
-      if(!canWrite(session.role)) return json(res,403,{error:'Forbidden'});
-      await ghDeleteFile(`${dir}/${dash}.json`, `Delete dashboard ${dash}`);
-      const idx = (await readJsonFile(indexPath)) || { dashboards: [] };
-      idx.dashboards = (Array.isArray(idx.dashboards)?idx.dashboards:[]).filter(d=>d.id!==dash);
-      await ghPutFile(indexPath, JSON.stringify(idx, null, 2), 'Update dashboard index');
-      return json(res,200,{ok:true});
-    }
+    res.setHeader('Allow', ['GET','POST','DELETE']);
+    return res.status(405).send('Method Not Allowed');
 
-    return json(res,400,{error:'Unsupported operation'});
-
-  }catch(e){
-    console.error(e);
-    return json(res,500,{error:e.message||String(e)});
+  } catch (e) {
+    const status = e.status || 500;
+    return res.status(status).json({ error: e.message || String(e) });
   }
-};
+}
