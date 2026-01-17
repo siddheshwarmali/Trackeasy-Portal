@@ -1,6 +1,6 @@
 
-import { readJson } from './_lib/github.js';
-import { verifyHash, signSession, setCookie } from './_lib/auth.js';
+import { readJson } from '../_lib/github.js';
+import { verifyHash, signSession, setCookie } from '../_lib/auth.js';
 
 export default async function handler(req, res){
   if(req.method !== 'POST'){
