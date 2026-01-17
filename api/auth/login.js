@@ -1,54 +1,38 @@
-'use strict';
 
-const { sign, setCookie, json, readJson, verifyPassword } = require('../_lib/auth');
-const { readJsonFile } = require('../_lib/github');
-const isProd = process.env.NODE_ENV === 'production';
+import { readJson } from './_lib/github.js';
+import { verifyHash, signSession, setCookie } from './_lib/auth.js';
 
-const USERS_FILE = process.env.GITHUB_USERS_FILE || 'data/users.json';
-function normUserId(u){ return String(u||'').trim(); }
-
-module.exports = async (req, res) => {
-  try {
-    if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
-
-    const secret = process.env.AUTH_SECRET || 'dev-secret-change-me';
-    const adminUser = process.env.ADMIN_USER || 'admin';
-    const adminPass = process.env.ADMIN_PASSWORD || 'admin';
-
-    let body = {};
-    try { body = await readJson(req); } catch (e) { return json(res, 400, { error: e.message }); }
-
-    const userId = normUserId(body.userId || body.username);
-    const password = String(body.password || '');
-    if (!userId || !password) return json(res, 400, { error: 'User ID and password required' });
-
-    // Bootstrap admin from env (no GitHub needed)
-    if (userId === adminUser && password === adminPass) {
-      const token = sign({ role: 'admin', userId }, secret);
-      setCookie(res, 'tw_session', token, { httpOnly: true, sameSite: 'Lax', secure: isProd, maxAge: 60*60*12 });
-      return json(res, 200, { authenticated: true, role: 'admin', userId });
-    }
-
-    // Non-admin users come from GitHub users file
-    let data = null;
-    try {
-      data = await readJsonFile(USERS_FILE);
-    } catch (e) {
-      // If env missing, return clear error (not crash)
-      return json(res, 500, { error: e.message || String(e) });
-    }
-
-    if (!data || !Array.isArray(data.users)) return json(res, 401, { error: 'Invalid credentials' });
-    const u = data.users.find(x => normUserId(x.userId) === userId);
-    if (!u || !verifyPassword(password, u.pass)) return json(res, 401, { error: 'Invalid credentials' });
-
-    const role = u.role || 'viewer';
-    const token = sign({ role, userId }, secret);
-    setCookie(res, 'tw_session', token, { httpOnly: true, sameSite: 'Lax', secure: isProd, maxAge: 60*60*12 });
-    return json(res, 200, { authenticated: true, role, userId });
-
-  } catch (e) {
-    console.error(e);
-    return json(res, 500, { error: e.message || String(e) });
+export default async function handler(req, res){
+  if(req.method !== 'POST'){
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).send('Method Not Allowed');
   }
-};
+
+  const secret = process.env.AUTH_SECRET;
+  if(!secret) return res.status(500).json({ error: 'Missing env var: AUTH_SECRET' });
+
+  let body = req.body;
+  if(typeof body === 'string'){
+    try{ body = JSON.parse(body); }catch{ body = {}; }
+  }
+
+  const email = (body?.email||'').trim().toLowerCase();
+  const password = body?.password || '';
+  if(!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+  try{
+    const { json } = await readJson();
+    const users = json.users || [];
+    const user = users.find(u => (u.email||'').toLowerCase() === email);
+    if(!user || !user.passwordHash || !verifyHash(password, user.passwordHash)){
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = signSession({ sub: user.id, email: user.email, role: user.role, name: user.name }, secret);
+    setCookie(res, 'session', token, { maxAge: 60*60*8, httpOnly: true, sameSite: 'Lax', secure: true });
+
+    return res.status(200).json({ ok: true });
+  }catch(e){
+    return res.status(500).json({ error: e.message });
+  }
+}
